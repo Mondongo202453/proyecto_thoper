@@ -1,0 +1,34 @@
+# Python / Django
+__pycache__/
+*.py[cod]
+*$py.class
+backend/env/
+backend/.env
+.venv/
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Node / React
+node_modules/
+frontend/node_modules/
+frontend/dist/
+frontend/.env
+
+# Local database
+db.sqlite3
+*.db
+
+# IDEs
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# XAMPP / Local config
+.env
+config.php
