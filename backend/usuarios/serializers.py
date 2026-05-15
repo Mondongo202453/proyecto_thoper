@@ -17,34 +17,30 @@ class StatusSerializer(serializers.ModelSerializer):
 
 
 class UsuarioSerializer(serializers.ModelSerializer):
-    creado_en = serializers.DateTimeField(required=False)
-    actualizado_en = serializers.DateTimeField(required=False)
+    role_nombre = serializers.ReadOnlyField(source='role.nombre')
+    status_nombre = serializers.ReadOnlyField(source='status.nombre')
 
     class Meta:
         model = Usuario
-        fields = '__all__'
+        fields = (
+            'id', 'nombre_completo', 'nombre_usuario', 'correo', 
+            'telefono', 'role', 'role_nombre', 'status', 'status_nombre', 
+            'intentos_fallidos', 'bloqueado_hasta', 'ultimo_login', 
+            'creado_en', 'actualizado_en'
+        )
+        read_only_fields = ('creado_en', 'actualizado_en', 'ultimo_login', 'intentos_fallidos', 'bloqueado_hasta')
 
-    def validate_nombre_completo(self, value):
-        if not value.strip():
-            raise serializers.ValidationError("El nombre completo es obligatorio.")
-        return value
 
-    def validate_nombre_usuario(self, value):
-        if not value.strip():
-            raise serializers.ValidationError("El nombre de usuario es obligatorio.")
-        return value
+class RegisterSerializer(serializers.ModelSerializer):
+    password = serializers.CharField(write_only=True, required=True)
 
-    def validate_hash_contrasena(self, value):
-        if not value.strip():
-            raise serializers.ValidationError("La contraseña es obligatoria.")
-        return value
+    class Meta:
+        model = Usuario
+        fields = ('nombre_completo', 'nombre_usuario', 'correo', 'password', 'telefono')
 
     def create(self, validated_data):
-        now = timezone.now()
-        validated_data.setdefault('creado_en', now)
-        validated_data.setdefault('actualizado_en', now)
-        return super().create(validated_data)
-
-    def update(self, instance, validated_data):
-        validated_data['actualizado_en'] = timezone.now()
-        return super().update(instance, validated_data)
+        # Default role: usuario (ID 2), Default status: activo (ID 1)
+        validated_data.setdefault('role_id', 2)
+        validated_data.setdefault('status_id', 1)
+        user = Usuario.objects.create_user(**validated_data)
+        return user

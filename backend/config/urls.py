@@ -11,4 +11,10 @@ urlpatterns = [
     path('', home),
     path('admin/', admin.site.urls),
     path('api/', include('usuarios.urls')),
+    path('api/', include('servicios.urls')),
+    path('api/', include('reservas.urls')),
+    path('api/', include('personal.urls')),
+    path('api/', include('portafolio.urls')),
+    path('api/', include('documentos.urls')),
+    path('api/', include('comunicacion.urls')),
 ]
