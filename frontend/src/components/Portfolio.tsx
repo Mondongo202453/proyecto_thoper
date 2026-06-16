@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { Camera, Video, Maximize2, X, ChevronRight, Loader2 } from 'lucide-react';
 import api from '../api/client';
 
@@ -42,10 +41,8 @@ const Portfolio = () => {
 
   return (
     <section className="py-24 px-6 max-w-7xl mx-auto overflow-hidden">
-      <motion.div 
-        initial={{ opacity: 0, x: -20 }}
-        whileInView={{ opacity: 1, x: 0 }}
-        className="mb-16 flex flex-col md:flex-row md:items-end justify-between gap-8"
+      <div 
+        className="mb-16 flex flex-col md:flex-row md:items-end justify-between gap-8 animate-slide-up"
       >
         <div>
           <h2 className="text-5xl font-display font-black tracking-tight mb-4 uppercase">
@@ -69,25 +66,16 @@ const Portfolio = () => {
             </button>
           ))}
         </div>
-      </motion.div>
+      </div>
 
       {/* Grid */}
-      <motion.div 
-        layout
-        className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
-      >
-        <AnimatePresence>
-          {filteredEventos.map((evento) => (
-            <motion.div
-              key={evento.id}
-              layout
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.9 }}
-              whileHover={{ y: -10 }}
-              className="glass-card group relative cursor-pointer overflow-hidden p-0"
-              onClick={() => setSelectedMedia(evento.multimedia[0]?.url_media)}
-            >
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {filteredEventos.map((evento) => (
+          <div
+            key={evento.id}
+            className="glass-card group relative cursor-pointer overflow-hidden p-0 transition-all duration-300 hover:-translate-y-2 animate-fade-in-scale"
+            onClick={() => setSelectedMedia(evento.multimedia[0]?.url_media)}
+          >
               <div className="aspect-[4/5] overflow-hidden">
                 {evento.multimedia?.[0] ? (
                   <img 
@@ -111,33 +99,25 @@ const Portfolio = () => {
                   Ver galería <ChevronRight className="w-4 h-4 text-primary" />
                 </div>
               </div>
-            </motion.div>
-          ))}
-        </AnimatePresence>
-      </motion.div>
+          </div>
+        ))}
+      </div>
 
       {/* Lightbox */}
-      <AnimatePresence>
-        {selectedMedia && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-xl flex items-center justify-center p-6"
-            onClick={() => setSelectedMedia(null)}
-          >
-            <button className="absolute top-10 right-10 p-4 bg-white/5 hover:bg-white/10 rounded-full text-white transition-colors">
-              <X className="w-8 h-8" />
-            </button>
-            <motion.img 
-              initial={{ scale: 0.8 }}
-              animate={{ scale: 1 }}
-              src={`http://127.0.0.1:8000${selectedMedia}`} 
-              className="max-w-full max-h-[85vh] object-contain rounded-2xl shadow-2xl shadow-primary/20"
-            />
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {selectedMedia && (
+        <div
+          className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-xl flex items-center justify-center p-6 animate-fade-in cursor-zoom-out"
+          onClick={() => setSelectedMedia(null)}
+        >
+          <button className="absolute top-10 right-10 p-4 bg-white/5 hover:bg-white/10 rounded-full text-white transition-colors">
+            <X className="w-8 h-8" />
+          </button>
+          <img 
+            src={`http://127.0.0.1:8000${selectedMedia}`} 
+            className="max-w-full max-h-[85vh] object-contain rounded-2xl shadow-2xl shadow-primary/20 animate-fade-in-scale"
+          />
+        </div>
+      )}
     </section>
   );
 };

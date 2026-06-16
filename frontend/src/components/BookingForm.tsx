@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { Calendar, MapPin, Users, Info, Send, CheckCircle2, Loader2, Plus, Trash2 } from 'lucide-react';
 import api from '../api/client';
 import { Servicio } from './Services';
@@ -70,9 +69,9 @@ const BookingForm = () => {
   if (submitted) {
     return (
       <div className="max-w-2xl mx-auto py-20 text-center">
-        <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} className="flex justify-center mb-6">
+        <div className="flex justify-center mb-6 animate-fade-in-scale">
           <CheckCircle2 className="w-20 h-20 text-primary" />
-        </motion.div>
+        </div>
         <h2 className="text-3xl font-bold mb-4">¡Solicitud Enviada!</h2>
         <p className="text-white/60 mb-8">
           Hemos recibido tu solicitud. Un asesor se pondrá en contacto contigo pronto y hemos enviado la cotización a tu correo.
@@ -183,11 +182,9 @@ const BookingForm = () => {
 
           <div className="space-y-4">
             {formData.servicios_contratados.map((item, idx) => (
-              <motion.div 
-                initial={{ opacity: 0, x: -10 }} 
-                animate={{ opacity: 1, x: 0 }} 
+              <div 
                 key={idx} 
-                className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end bg-white/5 p-4 rounded-xl border border-white/5"
+                className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end bg-white/5 p-4 rounded-xl border border-white/5 animate-slide-up"
               >
                 <div className="md:col-span-5">
                   <label className="block text-[10px] font-bold uppercase tracking-widest text-white/30 mb-2">Servicio</label>
@@ -237,7 +234,7 @@ const BookingForm = () => {
                     <Trash2 className="w-5 h-5" />
                   </button>
                 </div>
-              </motion.div>
+              </div>
             ))}
             {formData.servicios_contratados.length === 0 && (
               <div className="text-center py-8 border-2 border-dashed border-white/5 rounded-2xl text-white/20 text-sm">
@@ -253,8 +250,10 @@ const BookingForm = () => {
             disabled={loading || formData.servicios_contratados.length === 0}
             className="btn-primary px-12 py-4 flex items-center gap-3 disabled:opacity-50 disabled:scale-100"
           >
-            {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
-            Enviar Solicitud y Generar Cotización
+            <span className="flex items-center gap-2">
+              {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
+              <span>Enviar Solicitud y Generar Cotización</span>
+            </span>
           </button>
         </div>
       </form>

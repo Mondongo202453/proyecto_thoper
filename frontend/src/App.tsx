@@ -1,6 +1,5 @@
 import React from 'react';
 import { Routes, Route, Link, useLocation } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
 import { Flame, Star, Camera, Phone, Menu, X, ChevronRight, Play, Mail } from 'lucide-react';
 
 import Services from './components/Services';
@@ -8,6 +7,13 @@ import BookingForm from './components/BookingForm';
 import Portfolio from './components/Portfolio';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import RecuperarPassword from './pages/RecuperarPassword';
+import Contacto from './pages/Contacto';
+import MisReservas from './pages/MisReservas';
+import PanelStaff from './pages/PanelStaff';
+import Dashboard from './pages/Dashboard';
+import PrivateRoute from './components/PrivateRoute';
+import Perfil from './pages/Perfil';
 
 // --- COMPONENTS ---
 
@@ -54,8 +60,18 @@ const Footer = () => (
 
 const Navbar = () => {
   const [isOpen, setIsOpen] = React.useState(false);
-  const isAuthenticated = !!localStorage.getItem('access_token');
+  const [isAuthenticated, setIsAuthenticated] = React.useState(!!localStorage.getItem('access_token'));
   const location = useLocation();
+
+  // Actualizar autenticación cuando cambia en otra pestaña o en el mismo tab
+  React.useEffect(() => {
+    const handleStorage = () => setIsAuthenticated(!!localStorage.getItem('access_token'));
+    window.addEventListener('storage', handleStorage);
+    // También verificar al cambiar de ruta y cerrar menú móvil
+    setIsAuthenticated(!!localStorage.getItem('access_token'));
+    setIsOpen(false); // Cerrar menú al navegar (evita crash AnimatePresence)
+    return () => window.removeEventListener('storage', handleStorage);
+  }, [location]);
 
   const logout = () => {
     localStorage.removeItem('access_token');
@@ -88,7 +104,10 @@ const Navbar = () => {
 
         <div className="hidden md:flex items-center gap-6">
           {isAuthenticated ? (
-            <button onClick={logout} className="text-[10px] font-bold uppercase tracking-widest border border-white/10 px-6 py-2.5 rounded-full hover:bg-white/5 transition-all">Salir</button>
+            <>
+              <Link to="/dashboard" className="text-[10px] font-bold uppercase tracking-widest border border-primary/25 px-6 py-2.5 rounded-full bg-primary/10 hover:bg-primary/20 transition-all text-primary">Dashboard</Link>
+              <button onClick={logout} className="text-[10px] font-bold uppercase tracking-widest border border-white/10 px-6 py-2.5 rounded-full hover:bg-white/5 transition-all">Salir</button>
+            </>
           ) : (
             <>
               <Link to="/login" className="text-[10px] font-bold uppercase tracking-widest hover:text-primary transition-colors">Ingresar</Link>
@@ -104,31 +123,29 @@ const Navbar = () => {
       </div>
 
       {/* Mobile Nav */}
-      <AnimatePresence>
-        {isOpen && (
-          <motion.div 
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: 20 }}
-            className="md:hidden fixed inset-0 top-24 bg-background z-50 p-8 flex flex-col gap-8"
-          >
-            <Link to="/" onClick={() => setIsOpen(false)} className="text-2xl font-bold uppercase tracking-widest">Inicio</Link>
-            <Link to="/servicios" onClick={() => setIsOpen(false)} className="text-2xl font-bold uppercase tracking-widest">Servicios</Link>
-            <Link to="/portafolio" onClick={() => setIsOpen(false)} className="text-2xl font-bold uppercase tracking-widest">Portafolio</Link>
-            <Link to="/solicitud" onClick={() => setIsOpen(false)} className="text-2xl font-bold uppercase tracking-widest">Solicitud</Link>
-            <div className="mt-auto flex flex-col gap-4">
-              {isAuthenticated ? (
-                <button onClick={logout} className="btn-primary py-4">Salir</button>
-              ) : (
-                <>
-                  <Link to="/login" onClick={() => setIsOpen(false)} className="text-center py-4 border border-white/10 rounded-xl">Ingresar</Link>
-                  <Link to="/registro" onClick={() => setIsOpen(false)} className="btn-primary py-4">Registrarse</Link>
-                </>
-              )}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <div 
+        className={`md:hidden fixed inset-0 top-24 bg-background z-50 p-8 flex flex-col gap-8 transition-all duration-300 ease-out ${
+          isOpen ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-4 pointer-events-none'
+        }`}
+      >
+        <Link to="/" onClick={() => setIsOpen(false)} className="text-2xl font-bold uppercase tracking-widest">Inicio</Link>
+        <Link to="/servicios" onClick={() => setIsOpen(false)} className="text-2xl font-bold uppercase tracking-widest">Servicios</Link>
+        <Link to="/portafolio" onClick={() => setIsOpen(false)} className="text-2xl font-bold uppercase tracking-widest">Portafolio</Link>
+        <Link to="/solicitud" onClick={() => setIsOpen(false)} className="text-2xl font-bold uppercase tracking-widest">Solicitud</Link>
+        <div className="mt-auto flex flex-col gap-4">
+          {isAuthenticated ? (
+            <>
+              <Link to="/dashboard" onClick={() => setIsOpen(false)} className="text-center py-4 border border-primary/20 rounded-xl text-primary bg-primary/10">Dashboard</Link>
+              <button onClick={logout} className="btn-primary py-4">Salir</button>
+            </>
+          ) : (
+            <>
+              <Link to="/login" onClick={() => setIsOpen(false)} className="text-center py-4 border border-white/10 rounded-xl">Ingresar</Link>
+              <Link to="/registro" onClick={() => setIsOpen(false)} className="btn-primary py-4">Registrarse</Link>
+            </>
+          )}
+        </div>
+      </div>
     </nav>
   );
 };
@@ -138,11 +155,7 @@ const Hero = () => {
     <section className="relative min-h-screen flex items-center justify-center overflow-hidden">
       <div className="absolute inset-0 bg-gradient-to-b from-transparent via-background/40 to-background z-10" />
       <div className="max-w-7xl mx-auto px-6 relative z-20 text-center">
-        <motion.div
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 1 }}
-        >
+        <div className="animate-fade-in-scale">
           <span className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 border border-primary/20 text-[10px] font-bold uppercase tracking-[0.4em] text-primary mb-12">
             Professional Pyrotechnics
           </span>
@@ -161,7 +174,7 @@ const Hero = () => {
               Explorar Catálogo <div className="w-10 h-[1px] bg-white/20 group-hover:w-16 group-hover:bg-primary transition-all" />
             </Link>
           </div>
-        </motion.div>
+        </div>
       </div>
     </section>
   );
@@ -170,21 +183,52 @@ const Hero = () => {
 // --- MAIN APP ---
 
 const App = () => {
+  const location = useLocation();
+  const isDashboard = location.pathname.startsWith('/dashboard');
+  const isStaffPanel = location.pathname.startsWith('/panel-staff');
+  const isMisReservas = location.pathname.startsWith('/mis-reservas');
+  
+  const hideLayout = isDashboard || isStaffPanel || isMisReservas;
+
   return (
     <div className="min-h-screen bg-background text-white flex flex-col">
-      <Navbar />
-      <main className="flex-grow pt-24">
+      {!hideLayout && <Navbar />}
+      <main className={`flex-grow ${hideLayout ? '' : 'pt-24'}`}>
         <Routes>
           <Route path="/" element={<Hero />} />
           <Route path="/servicios" element={<div className="py-12"><Services /></div>} />
           <Route path="/portafolio" element={<div className="py-12"><Portfolio /></div>} />
           <Route path="/solicitud" element={<div className="py-12"><BookingForm /></div>} />
+          <Route path="/contacto" element={<Contacto />} />
+          
           <Route path="/login" element={<Login />} />
           <Route path="/registro" element={<Register />} />
+          <Route path="/recuperar-password" element={<RecuperarPassword />} />
+            <Route path="/perfil" element={<PrivateRoute><Perfil /></PrivateRoute>} />
+          
+          {/* Rutas protegidas por Rol */}
+          <Route path="/mis-reservas/*" element={
+            <PrivateRoute allowedRoles={[2]}>
+              <MisReservas />
+            </PrivateRoute>
+          } />
+          
+          <Route path="/panel-staff/*" element={
+            <PrivateRoute allowedRoles={[3]}>
+              <PanelStaff />
+            </PrivateRoute>
+          } />
+
+          <Route path="/dashboard/*" element={
+            <PrivateRoute allowedRoles={[1]}>
+              <Dashboard />
+            </PrivateRoute>
+          } />
+
           <Route path="*" element={<div className="pt-40 text-center min-h-screen">Página no encontrada</div>} />
         </Routes>
       </main>
-      <Footer />
+      {!hideLayout && <Footer />}
     </div>
   );
 };

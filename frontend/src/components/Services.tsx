@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { Flame, Star, ShoppingCart, Loader2, X, Check, Clock, Package, ChevronRight } from 'lucide-react';
 import api from '../api/client';
 
@@ -46,31 +45,24 @@ const Services = () => {
   return (
     <section className="py-24 px-6 max-w-7xl mx-auto overflow-hidden">
       <div className="mb-16">
-        <motion.span 
-          initial={{ opacity: 0 }} 
-          whileInView={{ opacity: 1 }}
-          className="text-primary font-bold text-xs uppercase tracking-[0.4em] mb-4 block"
+        <span 
+          className="text-primary font-bold text-xs uppercase tracking-[0.4em] mb-4 block animate-slide-up"
         >
           Experiencias Únicas
-        </motion.span>
+        </span>
         <h2 className="text-5xl font-display font-black tracking-tight mb-4 uppercase">
           Nuestros <span className="text-primary">Servicios</span>
         </h2>
         <div className="h-1.5 w-24 bg-primary rounded-full" />
       </div>
 
-      <motion.div 
-        variants={container}
-        initial="hidden"
-        whileInView="show"
-        viewport={{ once: true }}
-        className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8"
+      <div 
+        className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 animate-slide-up"
       >
         {servicios.map((servicio) => (
-          <motion.div
+          <div
             key={servicio.id}
-            variants={item}
-            className="glass-card group hover:bg-surface/60 transition-colors"
+            className="glass-card group hover:bg-surface/60 transition-all duration-300 hover:-translate-y-2 cursor-pointer"
             onClick={() => setSelectedService(servicio)}
           >
             <div className="relative aspect-[16/10] rounded-xl overflow-hidden mb-6 bg-surface/50 border border-white/5">
@@ -109,24 +101,21 @@ const Services = () => {
                 <ChevronRight className="w-6 h-6" />
               </div>
             </div>
-          </motion.div>
+          </div>
         ))}
-      </motion.div>
+      </div>
 
       {/* Service Detail Modal */}
-      <AnimatePresence>
-        {selectedService && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-xl flex items-center justify-center p-4"
+      {selectedService && (
+        <div
+          className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-xl flex items-center justify-center p-4 animate-fade-in"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setSelectedService(null);
+          }}
+        >
+          <div 
+            className="glass-card max-w-4xl w-full bg-surface/80 p-0 overflow-hidden grid grid-cols-1 md:grid-cols-2 h-full md:h-auto md:max-h-[85vh] animate-slide-up"
           >
-            <motion.div 
-              initial={{ y: 50, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              className="glass-card max-w-4xl w-full bg-surface/80 p-0 overflow-hidden grid grid-cols-1 md:grid-cols-2 h-full md:h-auto md:max-h-[85vh]"
-            >
               <div className="relative h-64 md:h-full bg-background">
                 {selectedService.imagenes?.[0] ? (
                   <img src={`http://127.0.0.1:8000${selectedService.imagenes[0].url_imagen}`} className="w-full h-full object-cover" />
@@ -172,10 +161,9 @@ const Services = () => {
                   Cotizar este servicio <ShoppingCart className="w-6 h-6" />
                 </a>
               </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          </div>
+        </div>
+      )}
     </section>
   );
 };

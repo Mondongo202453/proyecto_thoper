@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import { Flame, Mail, Lock, Loader2, ArrowRight } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { Flame, Mail, Lock, Loader2, ArrowRight, AlertCircle } from 'lucide-react';
 import api from '../api/client';
 
 const Login = () => {
@@ -16,12 +15,26 @@ const Login = () => {
     setError('');
     try {
       const res = await api.post('/token/', formData);
-      localStorage.setItem('access_token', res.data.access);
-      localStorage.setItem('refresh_token', res.data.refresh);
-      navigate('/');
-      window.location.reload(); // Para refrescar el estado global
-    } catch (err) {
-      setError('Credenciales incorrectas. Por favor intenta de nuevo.');
+      const { access, refresh, user } = res.data;
+
+      localStorage.setItem('access_token', access);
+      localStorage.setItem('refresh_token', refresh);
+      if (user) {
+        localStorage.setItem('user', JSON.stringify(user));
+      }
+
+      // Redirección por rol (RF03)
+      const roleId = user?.role_id;
+      if (roleId === 1) {
+        navigate('/dashboard');          // Administrador
+      } else if (roleId === 3) {
+        navigate('/panel-staff');        // Personal (Staff)
+      } else {
+        navigate('/mis-reservas');       // Usuario registrado
+      }
+    } catch (err: any) {
+      const detail = err?.response?.data?.detail;
+      setError(detail || 'Credenciales incorrectas. Por favor intenta de nuevo.');
     } finally {
       setLoading(false);
     }
@@ -29,11 +42,7 @@ const Login = () => {
 
   return (
     <div className="min-h-screen flex items-center justify-center px-6 pt-20">
-      <motion.div 
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        className="glass-card w-full max-w-md p-10 bg-surface/30"
-      >
+      <div className="glass-card w-full max-w-md p-10 bg-surface/30 animate-fade-in-scale">
         <div className="flex flex-col items-center mb-10">
           <div className="bg-primary p-3 rounded-2xl mb-4 shadow-xl shadow-primary/20">
             <Flame className="w-8 h-8 text-white" />
@@ -44,53 +53,75 @@ const Login = () => {
 
         <form onSubmit={handleSubmit} className="space-y-6">
           {error && (
-            <div className="bg-red-500/10 border border-red-500/20 text-red-500 text-xs py-3 px-4 rounded-xl text-center">
-              {error}
+            <div className="bg-red-500/10 border border-red-500/20 text-red-400 text-xs py-3 px-4 rounded-xl flex items-start gap-2">
+              <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+              <span>{error}</span>
             </div>
           )}
-          
+
           <div>
-            <label className="block text-[10px] font-bold uppercase tracking-widest text-white/30 mb-2">Usuario</label>
+            <label className="block text-[10px] font-bold uppercase tracking-widest text-white/30 mb-2">
+              Usuario o Correo Electrónico
+            </label>
             <div className="relative">
               <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20" />
-              <input 
+              <input
+                id="login-identifier"
                 type="text" required
                 className="w-full bg-background border border-white/10 rounded-xl pl-12 pr-4 py-3.5 focus:border-primary outline-none transition-colors"
-                placeholder="tu_usuario"
+                placeholder="usuario o correo@ejemplo.com"
                 value={formData.nombre_usuario}
-                onChange={e => setFormData({...formData, nombre_usuario: e.target.value})}
+                onChange={e => setFormData({ ...formData, nombre_usuario: e.target.value })}
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-[10px] font-bold uppercase tracking-widest text-white/30 mb-2">Contraseña</label>
+            <label className="block text-[10px] font-bold uppercase tracking-widest text-white/30 mb-2">
+              Contraseña
+            </label>
             <div className="relative">
               <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20" />
-              <input 
+              <input
+                id="login-password"
                 type="password" required
                 className="w-full bg-background border border-white/10 rounded-xl pl-12 pr-4 py-3.5 focus:border-primary outline-none transition-colors"
                 placeholder="••••••••"
                 value={formData.password}
-                onChange={e => setFormData({...formData, password: e.target.value})}
+                onChange={e => setFormData({ ...formData, password: e.target.value })}
               />
+            </div>
+            <div className="text-right mt-2">
+              <Link to="/recuperar-password" className="text-[10px] text-white/30 hover:text-primary transition-colors">
+                ¿Olvidaste tu contraseña?
+              </Link>
             </div>
           </div>
 
-          <button 
-            type="submit" 
+          <button
+            type="submit"
+            id="login-submit"
             disabled={loading}
             className="btn-primary w-full py-4 flex items-center justify-center gap-2 group"
           >
-            {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Ingresar'}
+            <span className="flex items-center gap-2">
+              {loading ? (
+                <Loader2 className="w-5 h-5 animate-spin" />
+              ) : (
+                <span>Ingresar</span>
+              )}
+            </span>
             <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
           </button>
         </form>
 
         <p className="mt-8 text-center text-sm text-white/30">
-          ¿No tienes cuenta? <Link to="/registro" className="text-primary font-bold hover:underline">Regístrate</Link>
+          ¿No tienes cuenta?{' '}
+          <Link to="/registro" className="text-primary font-bold hover:underline">
+            Regístrate
+          </Link>
         </p>
-      </motion.div>
+      </div>
     </div>
   );
 };

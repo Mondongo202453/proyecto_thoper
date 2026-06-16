@@ -44,3 +44,12 @@ class RegisterSerializer(serializers.ModelSerializer):
         validated_data.setdefault('status_id', 1)
         user = Usuario.objects.create_user(**validated_data)
         return user
+
+
+class PasswordResetRequestSerializer(serializers.Serializer):
+    correo = serializers.EmailField()
+
+
+class PasswordResetConfirmSerializer(serializers.Serializer):
+    token = serializers.CharField()
+    nueva_password = serializers.CharField(min_length=8, write_only=True)
