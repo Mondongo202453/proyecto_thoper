@@ -1,9 +1,12 @@
 asgiref==3.11.1
 Django==4.2.11
 django-cors-headers==4.9.0
+django-filter==23.5
 djangorestframework==3.17.1
 djangorestframework-simplejwt==5.5.1
 PyMySQL==1.1.2
 python-decouple==3.8
 sqlparse==0.5.5
 tzdata==2026.2
+requests==2.34.2
+Pillow==10.1.0

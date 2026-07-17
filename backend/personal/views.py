@@ -69,21 +69,26 @@ class StaffAssignmentViewSet(viewsets.ModelViewSet):
 
         if personal_id and reserva_id:
             from reservas.models import Reserva
+            from reservas.views import validar_conflicto_asignacion
             try:
                 reserva_nueva = Reserva.objects.get(id=reserva_id)
             except Reserva.DoesNotExist:
                 return Response({'detail': 'Reserva no encontrada.'}, status=status.HTTP_404_NOT_FOUND)
 
-            # Verificar conflicto de fecha (RN04)
-            conflicto = StaffAssignment.objects.filter(
-                personal_id=personal_id,
-                reserva__fecha_evento=reserva_nueva.fecha_evento,
-                reserva__status_id__in=[4, 5, 6]  # Excluir canceladas
-            ).exclude(reserva_id=reserva_id).exists()
+            conflicto, mensaje = validar_conflicto_asignacion(
+                personal_id,
+                reserva_nueva,
+                queryset=StaffAssignment.objects.filter(
+                    personal_id=personal_id,
+                    reserva__fecha_evento=reserva_nueva.fecha_evento,
+                    reserva__hora_evento=reserva_nueva.hora_evento,
+                    reserva__status_id__in=[4, 5, 6],
+                ).exclude(reserva_id=reserva_id)
+            )
 
             if conflicto:
                 return Response(
-                    {'detail': f"Este miembro del personal ya tiene una asignación el {reserva_nueva.fecha_evento}. No se puede asignar a dos eventos el mismo día (RN04)."},
+                    {'detail': f"{mensaje} No se puede asignar a dos eventos con la misma fecha y hora (RN04)."},
                     status=status.HTTP_400_BAD_REQUEST
                 )
 

@@ -9,6 +9,7 @@ const Register = () => {
     nombre_usuario: '',
     correo: '', 
     password: '',
+    confirm_password: '',
     telefono: ''
   });
   const [loading, setLoading] = useState(false);
@@ -19,11 +20,42 @@ const Register = () => {
     e.preventDefault();
     setLoading(true);
     setError('');
+
+    if (formData.password.length < 8) {
+      setError('La contraseña debe tener al menos 8 caracteres.');
+      setLoading(false);
+      return;
+    }
+
+    if (formData.password !== formData.confirm_password) {
+      setError('Las contraseñas no coinciden.');
+      setLoading(false);
+      return;
+    }
+
+    if (formData.nombre_usuario.includes(' ')) {
+      setError('El nombre de usuario no puede contener espacios.');
+      setLoading(false);
+      return;
+    }
+
     try {
       await api.post('/register/', formData);
       navigate('/login');
-    } catch (err) {
-      setError('Error en el registro. Es posible que el usuario o correo ya existan.');
+    } catch (err: any) {
+      const detail = err?.response?.data?.detail;
+      const errors = err?.response?.data;
+      if (errors?.nombre_usuario) {
+        setError(errors.nombre_usuario.join(' '));
+      } else if (errors?.correo) {
+        setError(errors.correo.join(' '));
+      } else if (errors?.password) {
+        setError(errors.password.join(' '));
+      } else if (detail) {
+        setError(detail);
+      } else {
+        setError('Error en el registro. Es posible que el usuario o correo ya existan.');
+      }
     } finally {
       setLoading(false);
     }
@@ -105,6 +137,19 @@ const Register = () => {
                   placeholder="••••••••"
                   value={formData.password}
                   onChange={e => setFormData({...formData, password: e.target.value})}
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-[10px] font-bold uppercase tracking-widest text-white/30 mb-2">Confirmar contraseña</label>
+              <div className="relative">
+                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20" />
+                <input 
+                  type="password" required
+                  className="w-full bg-background border border-white/10 rounded-xl pl-12 pr-4 py-3.5 focus:border-primary outline-none transition-colors"
+                  placeholder="••••••••"
+                  value={formData.confirm_password}
+                  onChange={e => setFormData({...formData, confirm_password: e.target.value})}
                 />
               </div>
             </div>

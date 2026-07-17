@@ -8,6 +8,7 @@ const BookingForm = () => {
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [serviciosDisponibles, setServiciosDisponibles] = useState<Servicio[]>([]);
+  const [error, setError] = useState('');
   
   const [formData, setFormData] = useState({
     nombre_evento: '',
@@ -21,7 +22,15 @@ const BookingForm = () => {
   });
 
   useEffect(() => {
-    api.get('/servicios/').then(res => setServiciosDisponibles(res.data));
+    api.get('/servicios/')
+      .then(res => {
+        const servicios = Array.isArray(res.data) ? res.data : res.data.results || [];
+        setServiciosDisponibles(servicios);
+      })
+      .catch(err => {
+        console.error('Error loading services:', err);
+        setError('Error al cargar los servicios disponibles');
+      });
   }, []);
 
   const addService = () => {
@@ -54,13 +63,24 @@ const BookingForm = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError('');
+    
+    // Validar que haya servicios
+    if (formData.servicios_contratados.length === 0) {
+      setError('Debes agregar al menos un servicio.');
+      return;
+    }
+
     setLoading(true);
     try {
-      await api.post('/reservas/', formData);
+      const response = await api.post('/reservas/', formData);
       setSubmitted(true);
-    } catch (err) {
-      console.error(err);
-      alert('Error al crear la reserva. Asegúrate de estar logueado.');
+    } catch (err: any) {
+      console.error('Error creating reservation:', err);
+      const errorMsg = err?.response?.data?.detail || 
+                       err?.response?.data?.servicios_contratados?.[0] ||
+                       'Error al crear la reserva. Asegúrate de estar logueado.';
+      setError(typeof errorMsg === 'string' ? errorMsg : 'Error desconocido');
     } finally {
       setLoading(false);
     }
@@ -82,7 +102,7 @@ const BookingForm = () => {
   }
 
   return (
-    <section className="py-24 px-6 max-w-4xl mx-auto">
+    <section className="min-h-screen py-24 px-6 max-w-4xl mx-auto">
       <div className="text-center mb-16">
         <h2 className="text-4xl font-display font-black tracking-tight mb-4 uppercase">
           Solicita tu <span className="text-primary">Evento</span>
@@ -91,6 +111,12 @@ const BookingForm = () => {
       </div>
 
       <form onSubmit={handleSubmit} className="glass-card bg-surface/20 p-8 md:p-12">
+        {error && (
+          <div className="mb-6 p-4 bg-red-500/10 border border-red-500/30 rounded-xl">
+            <p className="text-red-300 text-sm font-semibold">{error}</p>
+          </div>
+        )}
+        
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-12">
           {/* Datos Básicos */}
           <div className="space-y-6">
@@ -181,11 +207,27 @@ const BookingForm = () => {
           </div>
 
           <div className="space-y-4">
-            {formData.servicios_contratados.map((item, idx) => (
+            {formData.servicios_contratados.map((item, idx) => {
+              const servicioSeleccionado = serviciosDisponibles.find(s => s.id === parseInt(item.servicio));
+              const imagenPrincipal = servicioSeleccionado?.imagenes?.find((img: any) => img.es_principal) || 
+                                     servicioSeleccionado?.imagenes?.[0];
+              return (
               <div 
                 key={idx} 
-                className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end bg-white/5 p-4 rounded-xl border border-white/5 animate-slide-up"
+                className="grid grid-cols-1 md:grid-cols-12 gap-4 items-start bg-white/5 p-4 rounded-xl border border-white/5 animate-slide-up"
               >
+                {/* Imagen del servicio */}
+                {imagenPrincipal && (
+                  <div className="md:col-span-12 flex justify-center mb-4">
+                    <img 
+                      src={imagenPrincipal.url_imagen} 
+                      alt={imagenPrincipal.alt_text || servicioSeleccionado?.nombre}
+                      className="h-32 w-auto object-cover rounded-lg border border-white/10"
+                      onError={(e) => { (e.target as any).style.display = 'none'; }}
+                    />
+                  </div>
+                )}
+                
                 <div className="md:col-span-5">
                   <label className="block text-[10px] font-bold uppercase tracking-widest text-white/30 mb-2">Servicio</label>
                   <select 
@@ -235,7 +277,8 @@ const BookingForm = () => {
                   </button>
                 </div>
               </div>
-            ))}
+              );
+            })}
             {formData.servicios_contratados.length === 0 && (
               <div className="text-center py-8 border-2 border-dashed border-white/5 rounded-2xl text-white/20 text-sm">
                 No has añadido servicios aún.

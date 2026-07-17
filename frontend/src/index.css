@@ -1,19 +1,27 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Montserrat:wght@700;800;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Montserrat:wght@700;800;900&display=swap');
 @import "tailwindcss";
 
 @theme {
-  --color-primary: #FF9F1C;
-  --color-accent: #F97316;
-  --color-background: #0A0A0A;
-  --color-surface: #1E1E1E;
-  
+  --color-primary: #FF8A00;
+  --color-accent: #FFB347;
+  --color-background: #060606;
+  --color-surface: #121212;
+  --color-muted: #8b8b8b;
+  --color-panel: #171717;
+  --color-stroke: rgba(255,255,255,0.08);
+
   --font-sans: "Inter", "sans-serif";
   --font-display: "Montserrat", "sans-serif";
 }
 
-/* Custom Base Styles */
+:root {
+  color-scheme: dark;
+}
+
 body {
-  background-color: var(--color-background);
+  background:
+    radial-gradient(circle at top left, rgba(255, 138, 0, 0.12), transparent 28%),
+    linear-gradient(135deg, #050505 0%, #0d0d0d 100%);
   color: white;
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
@@ -21,23 +29,63 @@ body {
   overflow-x: hidden;
 }
 
-
-
 ::selection {
   background-color: var(--color-primary);
   color: white;
 }
 
-/* Components using @apply */
 @layer components {
   .btn-primary {
-    @apply bg-[var(--color-primary)] hover:bg-[var(--color-accent)] text-white px-6 py-2.5 rounded-full font-semibold transition-all duration-300 active:scale-95 shadow-lg shadow-orange-500/20;
+    @apply inline-flex items-center justify-center w-full sm:w-auto text-center bg-[var(--color-primary)] hover:bg-[var(--color-accent)] text-white px-6 py-2.5 rounded-full font-semibold transition-all duration-300 active:scale-95 shadow-[0_0_0_1px_rgba(255,255,255,0.06),0_12px_30px_rgba(255,138,0,0.22)];
   }
+
   .btn-outline {
-    @apply border border-white/20 hover:bg-white/10 text-white px-6 py-2.5 rounded-full font-semibold transition-all duration-300 active:scale-95;
+    @apply inline-flex items-center justify-center w-full sm:w-auto text-center border border-white/15 hover:bg-white/8 text-white px-6 py-2.5 rounded-full font-semibold transition-all duration-300 active:scale-95;
   }
+
   .glass-card {
-    @apply bg-[var(--color-surface)]/40 backdrop-blur-md border border-white/10 rounded-2xl p-6 hover:border-[var(--color-primary)]/30 transition-all duration-500;
+    @apply relative overflow-hidden bg-[var(--color-panel)]/80 backdrop-blur-xl border border-[var(--color-stroke)] rounded-[1.5rem] p-6 hover:border-[var(--color-primary)]/40 transition-all duration-500 shadow-[0_24px_80px_rgba(0,0,0,0.42)];
+  }
+
+  .glass-card::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(255,255,255,0.10), transparent 45%, rgba(255,138,0,0.08));
+    pointer-events: none;
+    opacity: 0.95;
+  }
+
+  .section-shell {
+    @apply max-w-7xl mx-auto px-6 lg:px-8;
+  }
+
+  .page-shell {
+    @apply min-h-screen w-full px-6 pt-24 pb-20;
+  }
+
+  .page-inner {
+    @apply max-w-6xl mx-auto;
+  }
+
+  .page-eyebrow {
+    @apply inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 border border-primary/20 text-[10px] font-bold uppercase tracking-[0.4em] text-primary mb-6;
+  }
+
+  .page-title {
+    @apply text-4xl md:text-5xl font-display font-black tracking-tighter uppercase;
+  }
+
+  .page-subtitle {
+    @apply text-white/45 max-w-2xl;
+  }
+
+  .panel-surface {
+    @apply rounded-[1.5rem] border border-white/10 bg-[linear-gradient(145deg,rgba(255,255,255,0.04),rgba(255,255,255,0.02))] backdrop-blur-xl shadow-[0_20px_60px_rgba(0,0,0,0.35)];
+  }
+
+  .text-gradient {
+    @apply text-transparent bg-clip-text bg-gradient-to-r from-primary via-orange-300 to-orange-500;
   }
 }
 

@@ -5,7 +5,7 @@ import {
   AlertTriangle, CheckCircle2, X, Loader2, ArrowLeft, ChevronRight,
   XCircle, LogOut
 } from 'lucide-react';
-import api from '../api/client';
+import api, { BACKEND_HOST } from '../api/client';
 
 const STATUS_COLORS: Record<number, string> = {
   4: 'bg-amber-500/10 border-amber-500/30 text-amber-400',   // Pendiente
@@ -292,7 +292,7 @@ const MisReservas = () => {
                     {documentos.map((doc: any, i: number) => (
                       <a
                         key={i}
-                        href={`http://localhost:8000${doc.url_pdf}`}
+                        href={`${BACKEND_HOST}${doc.url_pdf}`}
                         target="_blank" rel="noreferrer"
                         className="flex items-center justify-between p-3 bg-white/5 rounded-xl hover:bg-white/10 transition-all group"
                       >

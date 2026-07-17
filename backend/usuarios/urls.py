@@ -9,9 +9,9 @@ from .views import (
 )
 
 router = DefaultRouter()
-router.register(r'usuarios', UsuarioViewSet)
-router.register(r'roles', RoleViewSet)
-router.register(r'statuses', StatusViewSet)
+router.register(r'usuarios', UsuarioViewSet, basename='usuario')
+router.register(r'roles', RoleViewSet, basename='role')
+router.register(r'statuses', StatusViewSet, basename='status')
 
 urlpatterns = [
     # Auth

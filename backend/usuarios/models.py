@@ -1,6 +1,7 @@
 from django.db import models
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 
+
 class Role(models.Model):
     nombre = models.CharField(max_length=50, unique=True)
     descripcion = models.CharField(max_length=255, blank=True, default='')
@@ -33,6 +34,11 @@ class UsuarioManager(BaseUserManager):
     def create_user(self, nombre_usuario, correo, password=None, **extra_fields):
         if not correo:
             raise ValueError('El correo es obligatorio')
+        if not nombre_usuario:
+            raise ValueError('El nombre de usuario es obligatorio')
+        if not password:
+            raise ValueError('La contraseña es obligatoria')
+
         correo = self.normalize_email(correo)
         user = self.model(nombre_usuario=nombre_usuario, correo=correo, **extra_fields)
         user.set_password(password)
@@ -42,6 +48,10 @@ class UsuarioManager(BaseUserManager):
     def create_superuser(self, nombre_usuario, correo, password=None, **extra_fields):
         extra_fields.setdefault('role_id', 1)  # Admin role
         extra_fields.setdefault('status_id', 1)  # Active status
+
+        if not password:
+            raise ValueError('La contraseña del superusuario es obligatoria')
+
         return self.create_user(nombre_usuario, correo, password, **extra_fields)
 
 

@@ -1,6 +1,6 @@
 import React from 'react';
 import { Routes, Route, Link, useLocation } from 'react-router-dom';
-import { Flame, Star, Camera, Phone, Menu, X, ChevronRight, Play, Mail } from 'lucide-react';
+import { Flame, Phone, Menu, X, ChevronRight, Mail, Sparkles } from 'lucide-react';
 
 import Services from './components/Services';
 import BookingForm from './components/BookingForm';
@@ -40,7 +40,7 @@ const Footer = () => (
           <li><Link to="/" className="hover:text-primary transition-colors">Inicio</Link></li>
           <li><Link to="/servicios" className="hover:text-primary transition-colors">Servicios</Link></li>
           <li><Link to="/portafolio" className="hover:text-primary transition-colors">Portafolio</Link></li>
-          <li><Link to="/solicitud" className="hover:text-primary transition-colors">Contacto</Link></li>
+          <li><Link to="/contacto" className="hover:text-primary transition-colors">Contacto</Link></li>
         </ul>
       </div>
       <div>
@@ -82,7 +82,7 @@ const Navbar = () => {
   const isActive = (path: string) => location.pathname === path ? 'text-primary' : 'text-white/60';
 
   return (
-    <nav className="fixed top-0 left-0 right-0 z-[100] bg-background/40 backdrop-blur-xl border-b border-white/5">
+    <nav className="fixed top-0 left-0 right-0 z-[100] bg-background/55 backdrop-blur-2xl border-b border-white/10 shadow-[0_10px_40px_rgba(0,0,0,0.25)]">
       <div className="max-w-7xl mx-auto px-6 h-24 flex items-center justify-between">
         <Link to="/" className="flex flex-col group">
           <span className="text-3xl font-display font-black tracking-tighter uppercase leading-none group-hover:text-primary transition-colors">
@@ -152,27 +152,49 @@ const Navbar = () => {
 
 const Hero = () => {
   return (
-    <section className="relative min-h-screen flex items-center justify-center overflow-hidden">
-      <div className="absolute inset-0 bg-gradient-to-b from-transparent via-background/40 to-background z-10" />
-      <div className="max-w-7xl mx-auto px-6 relative z-20 text-center">
-        <div className="animate-fade-in-scale">
-          <span className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 border border-primary/20 text-[10px] font-bold uppercase tracking-[0.4em] text-primary mb-12">
-            Professional Pyrotechnics
+    <section
+      className="relative min-h-screen flex items-center justify-center overflow-hidden bg-cover bg-center"
+      style={{ backgroundImage: "url('/img/fondo-de-pagina.png')" }}
+    >
+      <div className="absolute inset-0 bg-black/65" />
+      <div className="absolute inset-0 z-0 bg-[radial-gradient(circle_at_top,_rgba(255,138,0,0.24),transparent_30%)]" />
+      <div className="absolute inset-0 z-0 bg-[linear-gradient(90deg,rgba(0,0,0,0.80)_0%,rgba(0,0,0,0.28)_100%)]" />
+      <div className="absolute inset-0 z-0 [background-image:linear-gradient(rgba(255,255,255,0.045)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.045)_1px,transparent_1px)] [background-size:72px_72px] opacity-25" />
+      <div className="section-shell relative z-20 text-center">
+        <div className="animate-fade-in-scale max-w-5xl mx-auto">
+          <span className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 border border-primary/20 text-[10px] font-bold uppercase tracking-[0.4em] text-primary mb-8 backdrop-blur-md">
+            <Sparkles className="w-3.5 h-3.5" /> Producción de eventos de alto impacto
           </span>
-          <h1 className="text-7xl md:text-9xl font-display font-black tracking-tighter mb-12 leading-[0.85] uppercase">
-            Ignite <br />
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-orange-600">
-              Your Vision
+          <h1 className="text-6xl md:text-8xl font-display font-black tracking-tighter mb-8 leading-[0.85] uppercase">
+            Efectos que
+            <span className="block text-gradient mt-2">
+              transforman el momento
             </span>
           </h1>
-          
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-6 mt-12">
-            <Link to="/solicitud" className="btn-primary flex items-center gap-3 px-10 py-5 text-sm uppercase tracking-widest">
-              Solicitar <ChevronRight className="w-5 h-5" />
+          <p className="mx-auto max-w-2xl text-lg md:text-xl text-white/70 leading-relaxed mb-10">
+            Diseñamos experiencias memorables con pirotecnia, humo, confeti y efectos especiales para eventos corporativos, sociales y premium.
+          </p>
+
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-6 mt-8">
+            <Link to="/solicitud" className="btn-primary w-full sm:w-auto flex items-center justify-center gap-3 px-10 py-5 text-sm uppercase tracking-widest">
+              Solicitar cotización <ChevronRight className="w-5 h-5" />
             </Link>
-            <Link to="/servicios" className="group flex items-center gap-3 text-sm font-bold uppercase tracking-widest text-white/60 hover:text-white transition-colors">
-              Explorar Catálogo <div className="w-10 h-[1px] bg-white/20 group-hover:w-16 group-hover:bg-primary transition-all" />
+            <Link to="/servicios" className="group flex w-full sm:w-auto items-center justify-center gap-3 text-sm font-bold uppercase tracking-widest text-white/70 hover:text-white transition-colors">
+              Explorar catálogo <div className="w-10 h-[1px] bg-white/20 group-hover:w-16 group-hover:bg-primary transition-all" />
             </Link>
+          </div>
+
+          <div className="mt-12 grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-3xl mx-auto text-left">
+            {[
+              ['Diseño a medida', 'Conceptos y ejecución pensados para cada tipo de evento.'],
+              ['Seguridad premium', 'Operación profesional con control y protocolo.'],
+              ['Entrega impecable', 'Resultados visuales y contundentes en cada montaje.'],
+            ].map(([title, text]) => (
+              <div key={title} className="glass-card p-5 bg-white/5">
+                <p className="font-semibold text-white mb-2">{title}</p>
+                <p className="text-sm text-white/55 leading-relaxed">{text}</p>
+              </div>
+            ))}
           </div>
         </div>
       </div>
@@ -196,10 +218,10 @@ const App = () => {
       <main className={`flex-grow ${hideLayout ? '' : 'pt-24'}`}>
         <Routes>
           <Route path="/" element={<Hero />} />
-          <Route path="/servicios" element={<div className="py-12"><Services /></div>} />
-          <Route path="/portafolio" element={<div className="py-12"><Portfolio /></div>} />
-          <Route path="/solicitud" element={<div className="py-12"><BookingForm /></div>} />
-          <Route path="/contacto" element={<Contacto />} />
+          <Route path="/servicios" element={<div className="min-h-screen w-full py-12"><Services /></div>} />
+          <Route path="/portafolio" element={<div className="min-h-screen w-full py-12"><Portfolio /></div>} />
+          <Route path="/solicitud" element={<PrivateRoute><div className="min-h-screen w-full py-12"><BookingForm /></div></PrivateRoute>} />
+          <Route path="/contacto" element={<div className="min-h-screen w-full"><Contacto /></div>} />
           
           <Route path="/login" element={<Login />} />
           <Route path="/registro" element={<Register />} />
@@ -225,7 +247,18 @@ const App = () => {
             </PrivateRoute>
           } />
 
-          <Route path="*" element={<div className="pt-40 text-center min-h-screen">Página no encontrada</div>} />
+          <Route path="*" element={
+            <div className="page-shell bg-background text-white">
+              <div className="page-inner max-w-2xl text-center">
+                <div className="panel-surface p-12">
+                  <span className="page-eyebrow">404</span>
+                  <h1 className="page-title text-3xl md:text-4xl mb-4">Página no encontrada</h1>
+                  <p className="page-subtitle mx-auto mb-8">La ruta que buscas no existe o fue movida. Vuelve al inicio para continuar tu experiencia.</p>
+                  <Link to="/" className="btn-primary inline-flex items-center gap-2 px-6 py-3">Volver al inicio</Link>
+                </div>
+              </div>
+            </div>
+          } />
         </Routes>
       </main>
       {!hideLayout && <Footer />}

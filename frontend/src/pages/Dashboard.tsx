@@ -2,11 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { Routes, Route, Link, useNavigate, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Calendar, Users, Briefcase, Image,
-  MessageSquare, LogOut, Menu, X, Home, Flame
+  MessageSquare, LogOut, Menu, X, Home, Flame, Sparkles
 } from 'lucide-react';
 import api from '../api/client';
 
-// Componentes de secciones
 const DashboardResumen = () => {
   const [stats, setStats] = useState({ total_reservas: 0, pendientes: 0, confirmadas: 0, completadas: 0 });
   const [loading, setLoading] = useState(true);
@@ -29,24 +28,37 @@ const DashboardResumen = () => {
     fetchStats();
   }, []);
 
+  const cards = [
+    { label: 'Total Reservas', value: stats.total_reservas, tone: 'from-blue-500/20 to-blue-500/5', icon: Calendar },
+    { label: 'Pendientes', value: stats.pendientes, tone: 'from-amber-500/20 to-amber-500/5', icon: Sparkles },
+    { label: 'Confirmadas', value: stats.confirmadas, tone: 'from-emerald-500/20 to-emerald-500/5', icon: Flame },
+    { label: 'Completadas', value: stats.completadas, tone: 'from-purple-500/20 to-purple-500/5', icon: LayoutDashboard },
+  ];
+
   return (
-    <div className="space-y-6">
-      <h1 className="text-4xl font-display font-black tracking-tighter uppercase">Dashboard</h1>
-      <p className="text-white/60">Bienvenido al panel de administración de Topher Producciones.</p>
+    <div className="space-y-8">
+      <div className="panel-surface p-8 relative overflow-hidden">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,138,0,0.16),transparent_42%)]" />
+        <div className="relative">
+          <span className="page-eyebrow">Resumen ejecutivo</span>
+          <h1 className="page-title mb-3">Dashboard</h1>
+          <p className="page-subtitle">Bienvenido al panel de administración de Topher Producciones.</p>
+        </div>
+      </div>
 
       {loading ? (
-        <p>Cargando estadísticas...</p>
+        <div className="glass-card bg-surface/20 border-white/5 p-8 text-center text-white/60">Cargando estadísticas...</div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-          {[
-            { label: 'Total Reservas', value: stats.total_reservas, color: 'bg-blue-500/10 border-blue-500/30' },
-            { label: 'Pendientes', value: stats.pendientes, color: 'bg-amber-500/10 border-amber-500/30' },
-            { label: 'Confirmadas', value: stats.confirmadas, color: 'bg-emerald-500/10 border-emerald-500/30' },
-            { label: 'Completadas', value: stats.completadas, color: 'bg-purple-500/10 border-purple-500/30' },
-          ].map((stat, i) => (
-            <div key={i} className={`p-6 rounded-xl border ${stat.color}`}>
-              <p className="text-white/60 text-sm font-semibold mb-2">{stat.label}</p>
-              <p className="text-3xl font-bold">{stat.value}</p>
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+          {cards.map(({ label, value, tone, icon: Icon }, i) => (
+            <div key={i} className={`glass-card bg-surface/20 border-white/5 bg-gradient-to-br ${tone}`}>
+              <div className="flex items-center justify-between mb-6">
+                <p className="text-white/60 text-sm font-semibold">{label}</p>
+                <div className="p-2 rounded-xl border border-white/10 bg-background/40">
+                  <Icon className="w-4 h-4 text-primary" />
+                </div>
+              </div>
+              <p className="text-3xl font-display font-black text-white">{value}</p>
             </div>
           ))}
         </div>
@@ -77,40 +89,47 @@ const DashboardReservas = () => {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-4xl font-display font-black tracking-tighter uppercase">Reservas</h1>
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-white/10">
-              <th className="px-4 py-3 text-left font-semibold">#</th>
-              <th className="px-4 py-3 text-left font-semibold">Evento</th>
-              <th className="px-4 py-3 text-left font-semibold">Fecha</th>
-              <th className="px-4 py-3 text-left font-semibold">Cliente</th>
-              <th className="px-4 py-3 text-left font-semibold">Estado</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <tr><td colSpan={5} className="px-4 py-6 text-center text-white/50">Cargando...</td></tr>
-            ) : reservas.length === 0 ? (
-              <tr><td colSpan={5} className="px-4 py-6 text-center text-white/50">Sin reservas</td></tr>
-            ) : (
-              reservas.slice(0, 20).map((r: any) => (
-                <tr key={r.id} className="border-b border-white/5 hover:bg-white/5">
-                  <td className="px-4 py-3">{r.numero_solicitud}</td>
-                  <td className="px-4 py-3">{r.nombre_evento}</td>
-                  <td className="px-4 py-3">{r.fecha_evento}</td>
-                  <td className="px-4 py-3">{r.usuario?.nombre_completo || 'N/A'}</td>
-                  <td className="px-4 py-3">
-                    <span className="px-3 py-1 rounded-full text-xs font-semibold bg-blue-500/20 text-blue-300">
-                      {STATUS_LABELS[r.status_id] || 'Desconocido'}
-                    </span>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+      <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-3">
+        <div>
+          <span className="page-eyebrow mb-3">Operación</span>
+          <h1 className="page-title text-3xl md:text-4xl">Reservas</h1>
+        </div>
+      </div>
+      <div className="glass-card bg-surface/20 border-white/5 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-white/10">
+                <th className="px-4 py-3 text-left font-semibold text-white/45">#</th>
+                <th className="px-4 py-3 text-left font-semibold text-white/45">Evento</th>
+                <th className="px-4 py-3 text-left font-semibold text-white/45">Fecha</th>
+                <th className="px-4 py-3 text-left font-semibold text-white/45">Cliente</th>
+                <th className="px-4 py-3 text-left font-semibold text-white/45">Estado</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr><td colSpan={5} className="px-4 py-8 text-center text-white/50">Cargando...</td></tr>
+              ) : reservas.length === 0 ? (
+                <tr><td colSpan={5} className="px-4 py-8 text-center text-white/50">Sin reservas</td></tr>
+              ) : (
+                reservas.slice(0, 20).map((r: any) => (
+                  <tr key={r.id} className="border-b border-white/5 hover:bg-white/5">
+                    <td className="px-4 py-3 text-white/70">{r.numero_solicitud}</td>
+                    <td className="px-4 py-3 text-white/80">{r.nombre_evento}</td>
+                    <td className="px-4 py-3 text-white/70">{r.fecha_evento}</td>
+                    <td className="px-4 py-3 text-white/70">{r.usuario?.nombre_completo || 'N/A'}</td>
+                    <td className="px-4 py-3">
+                      <span className="px-3 py-1 rounded-full text-xs font-semibold bg-blue-500/20 text-blue-300 border border-blue-500/20">
+                        {STATUS_LABELS[r.status_id] || 'Desconocido'}
+                      </span>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );
@@ -134,26 +153,29 @@ const DashboardServicios = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-4xl font-display font-black tracking-tighter uppercase">Servicios</h1>
-        <button className="bg-primary hover:bg-primary/80 px-6 py-2 rounded-lg font-semibold">
+      <div className="flex flex-col md:flex-row md:justify-between md:items-end gap-3">
+        <div>
+          <span className="page-eyebrow mb-3">Catálogo</span>
+          <h1 className="page-title text-3xl md:text-4xl">Servicios</h1>
+        </div>
+        <button className="btn-primary px-6 py-3 text-xs uppercase tracking-widest">
           + Nuevo Servicio
         </button>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {loading ? (
-          <p>Cargando...</p>
+          <div className="glass-card bg-surface/20 border-white/5 col-span-full text-center text-white/60">Cargando...</div>
         ) : servicios.length === 0 ? (
-          <p className="text-white/50">Sin servicios registrados</p>
+          <div className="glass-card bg-surface/20 border-white/5 col-span-full text-center text-white/50">Sin servicios registrados</div>
         ) : (
           servicios.map((s: any) => (
-            <div key={s.id} className="p-6 border border-white/10 rounded-xl">
-              <h3 className="font-bold text-lg mb-2">{s.nombre}</h3>
-              <p className="text-sm text-white/60 mb-4">{s.descripcion}</p>
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-primary">{s.categoria}</span>
-                <button className="text-xs hover:text-primary transition-colors">Editar</button>
+            <div key={s.id} className="glass-card bg-surface/20 border-white/5">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-bold text-lg text-white">{s.nombre}</h3>
+                <span className="text-[10px] font-semibold uppercase tracking-widest text-primary">{s.categoria}</span>
               </div>
+              <p className="text-sm text-white/60 mb-6 leading-relaxed">{s.descripcion}</p>
+              <button className="text-xs font-semibold uppercase tracking-widest text-white/70 hover:text-primary transition-colors">Editar</button>
             </div>
           ))
         )}
@@ -164,36 +186,40 @@ const DashboardServicios = () => {
 
 const DashboardUsuarios = () => {
   return (
-    <div>
-      <h1 className="text-4xl font-display font-black tracking-tighter uppercase mb-6">Usuarios</h1>
-      <p className="text-white/60">Gestión de usuarios del sistema</p>
+    <div className="glass-card bg-surface/20 border-white/5">
+      <span className="page-eyebrow mb-4">Gestión</span>
+      <h1 className="page-title text-3xl md:text-4xl mb-4">Usuarios</h1>
+      <p className="text-white/60">Gestión de usuarios del sistema.</p>
     </div>
   );
 };
 
 const DashboardPersonal = () => {
   return (
-    <div>
-      <h1 className="text-4xl font-display font-black tracking-tighter uppercase mb-6">Personal</h1>
-      <p className="text-white/60">Gestión y asignación de personal</p>
+    <div className="glass-card bg-surface/20 border-white/5">
+      <span className="page-eyebrow mb-4">Equipo</span>
+      <h1 className="page-title text-3xl md:text-4xl mb-4">Personal</h1>
+      <p className="text-white/60">Gestión y asignación de personal.</p>
     </div>
   );
 };
 
 const DashboardPortafolio = () => {
   return (
-    <div>
-      <h1 className="text-4xl font-display font-black tracking-tighter uppercase mb-6">Portafolio</h1>
-      <p className="text-white/60">Gestión de eventos del portafolio</p>
+    <div className="glass-card bg-surface/20 border-white/5">
+      <span className="page-eyebrow mb-4">Creatividad</span>
+      <h1 className="page-title text-3xl md:text-4xl mb-4">Portafolio</h1>
+      <p className="text-white/60">Gestión de eventos del portafolio.</p>
     </div>
   );
 };
 
 const DashboardContactos = () => {
   return (
-    <div>
-      <h1 className="text-4xl font-display font-black tracking-tighter uppercase mb-6">Mensajes</h1>
-      <p className="text-white/60">Mensajes recibidos del formulario de contacto</p>
+    <div className="glass-card bg-surface/20 border-white/5">
+      <span className="page-eyebrow mb-4">Comunicación</span>
+      <h1 className="page-title text-3xl md:text-4xl mb-4">Mensajes</h1>
+      <p className="text-white/60">Mensajes recibidos del formulario de contacto.</p>
     </div>
   );
 };
@@ -222,7 +248,7 @@ const Dashboard = () => {
   return (
     <div className="min-h-screen bg-background text-white flex">
       {/* Sidebar */}
-      <div className={`fixed md:static top-0 left-0 h-screen w-64 border-r border-white/10 bg-background/80 backdrop-blur-xl transition-transform duration-300 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} z-50`}>
+      <div className={`fixed md:static top-0 left-0 h-screen w-64 border-r border-white/10 bg-background/80 backdrop-blur-xl transition-transform duration-300 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} z-50 panel-surface rounded-none`}>
         <div className="p-6">
           <Link to="/" className="flex flex-col mb-8">
             <span className="text-2xl font-display font-black tracking-tighter uppercase">Topher</span>
@@ -240,10 +266,10 @@ const Dashboard = () => {
                 key={item.path}
                 to={`/dashboard${item.path ? '/' + item.path : ''}`}
                 onClick={() => setSidebarOpen(false)}
-                className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
+                className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${
                   isActive
                     ? 'bg-primary/20 border border-primary/30 text-primary'
-                    : 'text-white/60 hover:text-white'
+                    : 'text-white/60 hover:text-white hover:bg-white/5'
                 }`}
               >
                 <Icon className="w-5 h-5" />
@@ -256,7 +282,7 @@ const Dashboard = () => {
         <div className="absolute bottom-6 left-4 right-4">
           <button
             onClick={handleLogout}
-            className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-red-400 hover:bg-red-500/10 transition-colors border border-red-500/20"
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-red-400 hover:bg-red-500/10 transition-colors border border-red-500/20"
           >
             <LogOut className="w-5 h-5" />
             <span className="font-semibold text-sm">Cerrar Sesión</span>
@@ -276,7 +302,7 @@ const Dashboard = () => {
           </button>
           <div className="flex-1 flex items-center gap-3 ml-4">
             <Flame className="w-5 h-5 text-primary" />
-            <h2 className="font-semibold">Panel de Administración</h2>
+            <h2 className="font-semibold text-white/80">Panel de Administración</h2>
           </div>
         </div>
 

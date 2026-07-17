@@ -1,5 +1,7 @@
 from rest_framework import serializers
-from django.utils import timezone
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError as DjangoValidationError
+from django.core.validators import RegexValidator
 from .models import Usuario, Role, Status
 
 
@@ -32,14 +34,47 @@ class UsuarioSerializer(serializers.ModelSerializer):
 
 
 class RegisterSerializer(serializers.ModelSerializer):
-    password = serializers.CharField(write_only=True, required=True)
+    password = serializers.CharField(write_only=True, required=True, min_length=8)
+    confirm_password = serializers.CharField(write_only=True, required=True, min_length=8)
+    telefono = serializers.CharField(required=False, allow_blank=True)
 
     class Meta:
         model = Usuario
-        fields = ('nombre_completo', 'nombre_usuario', 'correo', 'password', 'telefono')
+        fields = ('nombre_completo', 'nombre_usuario', 'correo', 'password', 'confirm_password', 'telefono')
+
+    def validate_nombre_usuario(self, value):
+        if ' ' in value:
+            raise serializers.ValidationError('El nombre de usuario no debe contener espacios.')
+        if len(value) < 4:
+            raise serializers.ValidationError('El nombre de usuario debe tener al menos 4 caracteres.')
+        return value
+
+    def validate_correo(self, value):
+        value = value.lower()
+        if Usuario.objects.filter(correo__iexact=value).exists():
+            raise serializers.ValidationError('El correo ya está en uso.')
+        return value
+
+    def validate_password(self, value):
+        validate_password(value)
+        return value
+
+    def validate_telefono(self, value):
+        if value:
+            validator = RegexValidator(regex=r'^[0-9+\- ]+$')
+            try:
+                validator(value)
+            except DjangoValidationError:
+                raise serializers.ValidationError('El teléfono solo puede contener números, espacios, + y -.')
+        return value
+
+    def validate(self, attrs):
+        if attrs.get('password') != attrs.get('confirm_password'):
+            raise serializers.ValidationError('Las contraseñas no coinciden.')
+        return attrs
 
     def create(self, validated_data):
-        # Default role: usuario (ID 2), Default status: activo (ID 1)
+        validated_data.pop('confirm_password', None)
         validated_data.setdefault('role_id', 2)
         validated_data.setdefault('status_id', 1)
         user = Usuario.objects.create_user(**validated_data)

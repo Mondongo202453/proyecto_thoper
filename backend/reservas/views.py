@@ -3,6 +3,8 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.utils import timezone
 from django.conf import settings
+from django.db import transaction
+from decimal import Decimal
 import datetime
 
 from .models import Reserva, ReservationService, StatusHistory
@@ -24,6 +26,59 @@ TRANSICIONES_VALIDAS = {
 # 4=Pendiente, 5=Confirmada, 6=En Proceso, 7=Cancelada, 8=Completada
 STATUS_LABELS = {4: 'Pendiente', 5: 'Confirmada', 6: 'En Proceso', 7: 'Cancelada', 8: 'Completada'}
 ESTADOS_ACTIVOS = [4, 5, 6]
+
+
+def validar_cancelacion_reserva(reserva, user, now=None):
+    if user.role_id != 1 and reserva.usuario_id != getattr(user, 'id', None):
+        return False, 'No tienes permiso para cancelar esta reserva.'
+
+    if reserva.status_id not in [4, 5]:
+        return False, f"No puedes cancelar una reserva en estado '{STATUS_LABELS.get(reserva.status_id, reserva.status_id)}'."
+
+    if user.role_id != 1:
+        referencia = now or timezone.now()
+        fecha_hora_evento = timezone.make_aware(
+            datetime.datetime.combine(reserva.fecha_evento, reserva.hora_evento),
+            timezone.get_current_timezone()
+        )
+        diferencia_horas = (fecha_hora_evento - referencia).total_seconds() / 3600
+        if diferencia_horas < 72:
+            return False, 'Solo puedes cancelar con más de 72 horas de anticipación. Contacta directamente a la empresa.'
+
+    return True, None
+
+
+def validar_cambio_estado_reserva(reserva, nuevo_status_id, asignaciones_qs=None):
+    if nuevo_status_id == 5:
+        if asignaciones_qs is None:
+            from personal.models import StaffAssignment
+            asignaciones_qs = StaffAssignment.objects.filter(reserva=reserva)
+        if not asignaciones_qs.exists():
+            return False, 'No se puede confirmar la reserva sin al menos un miembro del personal asignado (RN06).'
+    return True, None
+
+
+def validar_conflicto_asignacion(personal_id, reserva_nueva, queryset=None):
+    if not personal_id or not reserva_nueva:
+        return False, None
+
+    if queryset is None:
+        from personal.models import StaffAssignment
+        queryset = StaffAssignment.objects.filter(
+            personal_id=personal_id,
+            reserva__fecha_evento=reserva_nueva.fecha_evento,
+            reserva__hora_evento=reserva_nueva.hora_evento,
+            reserva__status_id__in=[4, 5, 6],
+        ).exclude(reserva_id=reserva_nueva.id)
+
+    if queryset.exists():
+        return True, f"Este miembro del personal ya tiene una asignación en la misma fecha y hora ({reserva_nueva.fecha_evento} a las {reserva_nueva.hora_evento})."
+
+    return False, None
+
+
+def calcular_precio_servicio(tarifa, cantidad, duracion_horas):
+    return Decimal(str(tarifa.precio_unitario)) * Decimal(cantidad) * Decimal(str(duracion_horas))
 
 
 class ReservaViewSet(viewsets.ModelViewSet):
@@ -78,38 +133,35 @@ class ReservaViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        # RN06: No confirmar sin personal asignado
-        if nuevo_status_id == 5:
-            from personal.models import StaffAssignment
-            tiene_personal = StaffAssignment.objects.filter(reserva=reserva).exists()
-            if not tiene_personal:
-                return Response(
-                    {'detail': 'No se puede confirmar la reserva sin al menos un miembro del personal asignado (RN06).'},
-                    status=status.HTTP_400_BAD_REQUEST
+        from personal.models import StaffAssignment
+        asignaciones_qs = StaffAssignment.objects.filter(reserva=reserva)
+        es_valido, mensaje = validar_cambio_estado_reserva(reserva, nuevo_status_id, asignaciones_qs=asignaciones_qs)
+        if not es_valido:
+            return Response({'detail': mensaje}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            with transaction.atomic():
+                StatusHistory.objects.create(
+                    entity_type='reserva',
+                    entity_id=reserva.id,
+                    status_anterior_id=status_actual,
+                    status_nuevo_id=nuevo_status_id,
+                    cambiado_por=request.user
                 )
 
-        # Guardar historial
-        StatusHistory.objects.create(
-            entity_type='reserva',
-            entity_id=reserva.id,
-            status_anterior_id=status_actual,
-            status_nuevo_id=nuevo_status_id,
-            cambiado_por=request.user
-        )
+                reserva.status_id = nuevo_status_id
+                if notas_internas:
+                    reserva.notas_internas = notas_internas
+                reserva.save(update_fields=['status_id', 'notas_internas', 'actualizado_en'])
 
-        # Actualizar estado
-        reserva.status_id = nuevo_status_id
-        if notas_internas:
-            reserva.notas_internas = notas_internas
-        reserva.save()
-
-        # Generar PDF y notificar según el nuevo estado
-        self._procesar_cambio_estado(reserva, nuevo_status_id)
+                self._procesar_cambio_estado(reserva, nuevo_status_id, raise_on_error=False)
+        except Exception as exc:
+            return Response({'detail': f'No se pudo completar el cambio de estado: {exc}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
         serializer = ReservaSerializer(reserva, context={'request': request})
         return Response(serializer.data)
 
-    def _procesar_cambio_estado(self, reserva, nuevo_status_id):
+    def _procesar_cambio_estado(self, reserva, nuevo_status_id, raise_on_error=False):
         """Genera PDFs y envía notificaciones al cambiar estado (RF26, RF27, RF28)"""
         from documentos.utils import generar_pdf_reserva
         from documentos.models import Cotizacion
@@ -158,11 +210,15 @@ class ReservaViewSet(viewsets.ModelViewSet):
                 if asunto:
                     enviar_correo_con_pdf(reserva.usuario.correo, asunto, cuerpo, pdf_url)
             except Exception as e:
+                if raise_on_error:
+                    raise
                 print(f"[WARN] Error generando PDF estado {nuevo_status_id}: {e}")
         elif asunto:
             try:
                 enviar_correo_con_pdf(reserva.usuario.correo, asunto, cuerpo, None)
             except Exception as e:
+                if raise_on_error:
+                    raise
                 print(f"[WARN] Error enviando correo cancelación: {e}")
 
         # Registrar notificación en sistema (RF28)
@@ -176,6 +232,8 @@ class ReservaViewSet(viewsets.ModelViewSet):
                     mensaje=f"Tu reserva {reserva.numero_solicitud} cambió a estado: {STATUS_LABELS.get(nuevo_status_id, '')}."
                 )
             except Exception as e:
+                if raise_on_error:
+                    raise
                 print(f"[WARN] Error registrando notificación: {e}")
 
     # ── Cancelar reserva (RF18, RN01) ────────────────────────────────
@@ -188,44 +246,29 @@ class ReservaViewSet(viewsets.ModelViewSet):
         if user.role_id != 1 and reserva.usuario != user:
             return Response({'detail': 'No tienes permiso para cancelar esta reserva.'}, status=status.HTTP_403_FORBIDDEN)
 
-        # RN01: Solo Pendiente o Confirmada
-        if reserva.status_id not in [4, 5]:
-            return Response(
-                {'detail': f"No puedes cancelar una reserva en estado '{STATUS_LABELS.get(reserva.status_id, reserva.status_id)}'."},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        # RN01: Más de 72 horas de anticipación (solo aplica al usuario, no al admin)
-        if user.role_id != 1:
-            fecha_hora_evento = datetime.datetime.combine(
-                reserva.fecha_evento,
-                reserva.hora_evento,
-                tzinfo=timezone.get_current_timezone()
-            )
-            ahora = timezone.now()
-            diferencia_horas = (fecha_hora_evento - ahora).total_seconds() / 3600
-
-            if diferencia_horas < 72:
-                return Response(
-                    {'detail': 'Solo puedes cancelar con más de 72 horas de anticipación. Contacta directamente a la empresa.'},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
+        es_valido, mensaje = validar_cancelacion_reserva(reserva, user, now=timezone.now())
+        if not es_valido:
+            return Response({'detail': mensaje}, status=status.HTTP_400_BAD_REQUEST)
 
         motivo = request.data.get('motivo', '')
-        StatusHistory.objects.create(
-            entity_type='reserva',
-            entity_id=reserva.id,
-            status_anterior_id=reserva.status_id,
-            status_nuevo_id=7,  # Cancelada
-            cambiado_por=user
-        )
+        try:
+            with transaction.atomic():
+                StatusHistory.objects.create(
+                    entity_type='reserva',
+                    entity_id=reserva.id,
+                    status_anterior_id=reserva.status_id,
+                    status_nuevo_id=7,  # Cancelada
+                    cambiado_por=user
+                )
 
-        reserva.status_id = 7  # Cancelada
-        reserva.cancelado_en = timezone.now()
-        reserva.motivo_cancelacion = motivo
-        reserva.save()
+                reserva.status_id = 7  # Cancelada
+                reserva.cancelado_en = timezone.now()
+                reserva.motivo_cancelacion = motivo
+                reserva.save(update_fields=['status_id', 'cancelado_en', 'motivo_cancelacion', 'actualizado_en'])
 
-        self._procesar_cambio_estado(reserva, 7)
+                self._procesar_cambio_estado(reserva, 7, raise_on_error=False)
+        except Exception as exc:
+            return Response({'detail': f'No se pudo cancelar la reserva: {exc}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
         return Response({'detail': 'Reserva cancelada correctamente.'})
 

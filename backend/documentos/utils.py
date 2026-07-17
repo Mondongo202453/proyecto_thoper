@@ -114,6 +114,37 @@ def generar_pdf_reserva(reserva, tipo_doc='cotizacion'):
     ]))
     elements.append(t_total)
     
+    if tipo_doc == 'confirmacion':
+        asignaciones = reserva.asignaciones_staff.select_related('personal').all()
+        if asignaciones:
+            elements.append(Spacer(1, 20))
+            elements.append(Paragraph("<b>PERSONAL ASIGNADO:</b>", styles['Heading3']))
+            staff_rows = [["Nombre", "Rol", "Correo", "Especialidad"]]
+            for asignacion in asignaciones:
+                staff_rows.append([
+                    asignacion.personal.nombre,
+                    asignacion.rol_en_evento,
+                    asignacion.personal.correo,
+                    asignacion.personal.especialidad,
+                ])
+            staff_table = Table(staff_rows, colWidths=[140, 120, 140, 100])
+            staff_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#2C3E50")),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('GRID', (0, 0), (-1, -1), 0.3, colors.black),
+            ]))
+            elements.append(staff_table)
+        else:
+            elements.append(Spacer(1, 12))
+            elements.append(Paragraph("No hay personal asignado aún.", styles['Normal']))
+
+    if tipo_doc == 'servicio_prestado':
+        elements.append(Spacer(1, 20))
+        elements.append(Paragraph("<b>DETALLES DEL SERVICIO PRESTADO:</b>", styles['Heading3']))
+        elements.append(Paragraph(f"Evento: {reserva.nombre_evento}", styles['Normal']))
+        elements.append(Paragraph(f"Fecha: {reserva.fecha_evento} Hora: {reserva.hora_evento}", styles['Normal']))
+        elements.append(Paragraph(f"Lugar: {reserva.lugar}, {reserva.municipio}", styles['Normal']))
+
     # Notas Legales y Observaciones
     if reserva.observaciones:
         elements.append(Spacer(1, 30))

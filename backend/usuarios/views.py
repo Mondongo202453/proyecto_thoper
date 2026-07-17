@@ -1,4 +1,4 @@
-from rest_framework import viewsets, generics, permissions, status
+from rest_framework import viewsets, generics, permissions, status, serializers
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -32,12 +32,12 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
             else:
                 usuario = Usuario.objects.get(nombre_usuario=identifier)
         except Usuario.DoesNotExist:
-            raise Exception("Credenciales inválidas.")
+            raise serializers.ValidationError("Credenciales inválidas.")
 
         # Verificar bloqueo (RN05)
         if usuario.bloqueado_hasta and usuario.bloqueado_hasta > timezone.now():
             minutos_restantes = int((usuario.bloqueado_hasta - timezone.now()).total_seconds() / 60) + 1
-            raise Exception(
+            raise serializers.ValidationError(
                 f"Cuenta bloqueada por {minutos_restantes} minuto(s) debido a múltiples intentos fallidos."
             )
 
@@ -59,11 +59,11 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
                 usuario.bloqueado_hasta = timezone.now() + datetime.timedelta(minutes=lockout_min)
                 usuario.intentos_fallidos = 0
                 usuario.save(update_fields=['intentos_fallidos', 'bloqueado_hasta'])
-                raise Exception(
+                raise serializers.ValidationError(
                     f"Has superado los {max_intentos} intentos. Cuenta bloqueada por {lockout_min} minutos."
                 )
             usuario.save(update_fields=['intentos_fallidos'])
-            raise Exception(
+            raise serializers.ValidationError(
                 f"Credenciales inválidas. Intentos restantes: {max_intentos - usuario.intentos_fallidos}."
             )
 

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Camera, Video, Maximize2, X, ChevronRight, Loader2 } from 'lucide-react';
-import api from '../api/client';
+import { Camera, X, ChevronRight, Loader2 } from 'lucide-react';
+import api, { BACKEND_HOST } from '../api/client';
 
 interface Media {
   id: number;
@@ -17,18 +17,96 @@ interface Evento {
   multimedia: Media[];
 }
 
+const localEventos: Evento[] = [
+  {
+    id: 1001,
+    nombre: 'Revelación de género con confeti rosa',
+    descripcion: 'Celebración privada con un montaje premium de globos y humo.',
+    categoria: 'Revelaciones',
+    multimedia: [{ id: 1, tipo: 'foto', url_media: '/img/imagen1.jpg', es_principal: true }],
+  },
+  {
+    id: 1002,
+    nombre: 'Celebración con humo y luces',
+    descripcion: 'Atmósfera festiva y profesional con efectos especiales en vivo.',
+    categoria: 'Revelaciones',
+    multimedia: [{ id: 2, tipo: 'foto', url_media: '/img/img1.jpg', es_principal: true }],
+  },
+  {
+    id: 1003,
+    nombre: 'Montaje sobre camión con decoración',
+    descripcion: 'Evento móvil con detalles de producción y efectos visuales.',
+    categoria: 'Revelaciones',
+    multimedia: [{ id: 3, tipo: 'foto', url_media: '/img/img2.jpg', es_principal: true }],
+  },
+  {
+    id: 1004,
+    nombre: 'Artista en escenario con fuego',
+    descripcion: 'Performance en vivo con pirotecnia y público entusiasta.',
+    categoria: 'Shows',
+    multimedia: [{ id: 4, tipo: 'foto', url_media: '/img/img3.jpg', es_principal: true }],
+  },
+  {
+    id: 1005,
+    nombre: 'Noche de concierto con flamas',
+    descripcion: 'Producción nocturna con efectos de fuego y sonido profesional.',
+    categoria: 'Shows',
+    multimedia: [{ id: 5, tipo: 'foto', url_media: '/img/whatsapp-1.jpeg', es_principal: true }],
+  },
+  {
+    id: 1006,
+    nombre: 'Eventos íntimos con efecto de chispa',
+    descripcion: 'Momentos especiales con pirotecnia de control para artistas y parejas.',
+    categoria: 'Shows',
+    multimedia: [{ id: 6, tipo: 'foto', url_media: '/img/whatsapp-2.jpeg', es_principal: true }],
+  },
+  {
+    id: 1007,
+    nombre: 'Presentación con humo y público',
+    descripcion: 'Escenario donde cada detalle crea un ambiente memorable.',
+    categoria: 'Shows',
+    multimedia: [{ id: 7, tipo: 'foto', url_media: '/img/imagen2.jpg', es_principal: true }],
+  },
+  {
+    id: 1008,
+    nombre: 'Fiesta en vivo con atmósfera intensa',
+    descripcion: 'Experiencias de alto impacto con efectos visuales y sonoros.',
+    categoria: 'Shows',
+    multimedia: [{ id: 8, tipo: 'foto', url_media: '/img/imagen3.jpg', es_principal: true }],
+  },
+];
+
 const Portfolio = () => {
-  const [eventos, setEventos] = useState<Evento[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [eventos, setEventos] = useState<Evento[]>(localEventos);
+  const [loading, setLoading] = useState(false);
   const [selectedMedia, setSelectedMedia] = useState<string | null>(null);
   const [filter, setFilter] = useState('Todos');
 
   useEffect(() => {
+    setLoading(true);
     api.get('/portafolio/')
-      .then(res => setEventos(res.data))
-      .catch(err => console.error(err))
+      .then(res => {
+        const data = Array.isArray(res.data) ? res.data : res.data.results || [];
+        if (data.length > 0) {
+          const existingIds = new Set(localEventos.map(evento => evento.id));
+          const merged = [
+            ...localEventos,
+            ...data.filter((evento: Evento) => !existingIds.has(evento.id)),
+          ];
+          setEventos(merged);
+        }
+      })
+      .catch(() => {
+        // Usar imágenes locales si el backend no responde o no hay datos
+      })
       .finally(() => setLoading(false));
   }, []);
+
+  const resolveMediaUrl = (mediaUrl: string) => {
+    if (mediaUrl.startsWith('http')) return mediaUrl;
+    if (mediaUrl.startsWith('/img/') || mediaUrl.startsWith('img/')) return mediaUrl;
+    return `${BACKEND_HOST}${mediaUrl}`;
+  };
 
   const categories = ['Todos', ...new Set(eventos.map(e => e.categoria))];
   const filteredEventos = filter === 'Todos' ? eventos : eventos.filter(e => e.categoria === filter);
@@ -40,7 +118,7 @@ const Portfolio = () => {
   );
 
   return (
-    <section className="py-24 px-6 max-w-7xl mx-auto overflow-hidden">
+    <section className="min-h-screen py-24 px-6 max-w-7xl mx-auto overflow-hidden">
       <div 
         className="mb-16 flex flex-col md:flex-row md:items-end justify-between gap-8 animate-slide-up"
       >
@@ -79,7 +157,7 @@ const Portfolio = () => {
               <div className="aspect-[4/5] overflow-hidden">
                 {evento.multimedia?.[0] ? (
                   <img 
-                    src={`http://127.0.0.1:8000${evento.multimedia[0].url_media}`} 
+                    src={resolveMediaUrl(evento.multimedia[0].url_media)} 
                     alt={evento.nombre}
                     className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-700 scale-110 group-hover:scale-100"
                   />
@@ -113,7 +191,7 @@ const Portfolio = () => {
             <X className="w-8 h-8" />
           </button>
           <img 
-            src={`http://127.0.0.1:8000${selectedMedia}`} 
+            src={selectedMedia ? resolveMediaUrl(selectedMedia) : ''} 
             className="max-w-full max-h-[85vh] object-contain rounded-2xl shadow-2xl shadow-primary/20 animate-fade-in-scale"
           />
         </div>
