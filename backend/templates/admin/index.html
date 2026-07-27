@@ -1,0 +1,19 @@
+{% extends "admin/index.html" %}
+{% load i18n static %}
+
+{% block content %}
+<div class="admin-shell dashboard-shell">
+  <div class="dashboard-hero">
+    <div class="dashboard-copy">
+      <p class="eyebrow">TOPHER</p>
+      <h1>Panel de gestión</h1>
+      <p>Controla reservas, servicios, portafolio, documentos y usuarios desde una vista central y elegante.</p>
+    </div>
+    <div class="dashboard-badge">
+      <span class="badge-pill">Backend</span>
+      <span class="badge-pill muted">Django</span>
+    </div>
+  </div>
+  {{ block.super }}
+</div>
+{% endblock %}

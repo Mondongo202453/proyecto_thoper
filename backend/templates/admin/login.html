@@ -1,0 +1,22 @@
+{% extends "admin/login.html" %}
+{% load static %}
+
+{% block extrastyle %}
+{{ block.super }}
+<link rel="stylesheet" href="{% static 'usuarios/admin.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="admin-shell">
+  <div class="admin-glass-card login-card">
+    <div class="login-brand">
+      <div class="brand-mark">T</div>
+      <div>
+        <h1>Topher Admin</h1>
+        <p>Panel de gestión y administración</p>
+      </div>
+    </div>
+    {{ block.super }}
+  </div>
+</div>
+{% endblock %}

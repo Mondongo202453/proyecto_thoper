@@ -21,6 +21,10 @@ frontend/.env
 db.sqlite3
 *.db
 
+# Generated media and logs
+backend/media/
+*.log
+
 # IDEs
 .vscode/
 .idea/
