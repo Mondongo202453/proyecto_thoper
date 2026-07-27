@@ -85,21 +85,21 @@ const Navbar = () => {
     <nav className="fixed top-0 left-0 right-0 z-[100] bg-background/55 backdrop-blur-2xl border-b border-white/10 shadow-[0_10px_40px_rgba(0,0,0,0.25)]">
       <div className="max-w-7xl mx-auto px-6 h-24 flex items-center justify-between">
         <Link to="/" className="flex flex-col group">
-          <span className="text-3xl font-display font-black tracking-tighter uppercase leading-none group-hover:text-primary transition-colors">
+          <span className="text-3xl font-display font-black tracking-tighter uppercase leading-none group-hover:text-primary transition-colors text-3d">
             Topher
           </span>
           <div className="h-[1px] w-full bg-white/20 my-0.5 group-hover:bg-primary transition-colors" />
-          <span className="text-[7px] font-medium tracking-[0.7em] uppercase text-white/40 group-hover:text-white transition-colors">
+          <span className="text-[7px] font-medium tracking-[0.7em] uppercase text-white/40 group-hover:text-white transition-colors text-3d">
             Producciones
           </span>
         </Link>
 
         {/* Desktop Nav */}
         <div className="hidden md:flex items-center gap-12">
-          <Link to="/" className={`text-[10px] font-bold uppercase tracking-widest hover:text-primary transition-colors ${isActive('/')}`}>Inicio</Link>
-          <Link to="/servicios" className={`text-[10px] font-bold uppercase tracking-widest hover:text-primary transition-colors ${isActive('/servicios')}`}>Servicios</Link>
-          <Link to="/portafolio" className={`text-[10px] font-bold uppercase tracking-widest hover:text-primary transition-colors ${isActive('/portafolio')}`}>Portafolio</Link>
-          <Link to="/solicitud" className={`text-[10px] font-bold uppercase tracking-widest hover:text-primary transition-colors ${isActive('/solicitud')}`}>Solicitud</Link>
+          <Link to="/" className={`text-[10px] font-bold uppercase tracking-widest hover:text-primary transition-colors ${isActive('/')} text-3d`}>Inicio</Link>
+          <Link to="/servicios" className={`text-[10px] font-bold uppercase tracking-widest hover:text-primary transition-colors ${isActive('/servicios')} text-3d`}>Servicios</Link>
+          <Link to="/portafolio" className={`text-[10px] font-bold uppercase tracking-widest hover:text-primary transition-colors ${isActive('/portafolio')} text-3d`}>Portafolio</Link>
+          <Link to="/solicitud" className={`text-[10px] font-bold uppercase tracking-widest hover:text-primary transition-colors ${isActive('/solicitud')} text-3d`}>Solicitud</Link>
         </div>
 
         <div className="hidden md:flex items-center gap-6">
@@ -110,8 +110,8 @@ const Navbar = () => {
             </>
           ) : (
             <>
-              <Link to="/login" className="text-[10px] font-bold uppercase tracking-widest hover:text-primary transition-colors">Ingresar</Link>
-              <Link to="/registro" className="btn-primary py-2.5 text-[10px]">Registrarse</Link>
+              <Link to="/login" className="text-[10px] font-bold uppercase tracking-widest hover:text-primary transition-colors text-3d">Ingresar</Link>
+              <Link to="/registro" className="btn-primary btn-3d py-2.5 text-[10px]">Registrarse</Link>
             </>
           )}
         </div>
@@ -176,10 +176,10 @@ const Hero = () => {
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-6 mt-8">
-            <Link to="/solicitud" className="btn-primary w-full sm:w-auto flex items-center justify-center gap-3 px-10 py-5 text-sm uppercase tracking-widest">
+            <Link to="/solicitud" className="btn-primary btn-3d w-full sm:w-auto flex items-center justify-center gap-3 px-10 py-5 text-sm uppercase tracking-widest">
               Solicitar cotización <ChevronRight className="w-5 h-5" />
             </Link>
-            <Link to="/servicios" className="group flex w-full sm:w-auto items-center justify-center gap-3 text-sm font-bold uppercase tracking-widest text-white/70 hover:text-white transition-colors">
+            <Link to="/servicios" className="group flex w-full sm:w-auto items-center justify-center gap-3 text-sm font-bold uppercase tracking-widest text-white/70 hover:text-white transition-colors text-3d">
               Explorar catálogo <div className="w-10 h-[1px] bg-white/20 group-hover:w-16 group-hover:bg-primary transition-all" />
             </Link>
           </div>
@@ -213,7 +213,7 @@ const App = () => {
   const hideLayout = isDashboard || isStaffPanel || isMisReservas;
 
   return (
-    <div className="min-h-screen bg-background text-white flex flex-col">
+    <div className="min-h-screen bg-background text-white flex flex-col page-visible">
       {!hideLayout && <Navbar />}
       <main className={`flex-grow ${hideLayout ? '' : 'pt-24'}`}>
         <Routes>

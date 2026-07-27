@@ -13,6 +13,8 @@ class ReservationServiceSerializer(serializers.ModelSerializer):
 
 class ReservaSerializer(serializers.ModelSerializer):
     servicios_contratados = ReservationServiceSerializer(many=True, required=False)
+    # Make status optional on input; default will be applied in create() if not provided
+    status = serializers.PrimaryKeyRelatedField(queryset=Status.objects.all(), required=False, allow_null=True)
     status_nombre = serializers.ReadOnlyField(source='status.nombre')
     usuario_nombre = serializers.ReadOnlyField(source='usuario.nombre_completo')
 

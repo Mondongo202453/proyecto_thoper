@@ -17,6 +17,14 @@ SET time_zone = "+00:00";
 /*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;
 /*!40101 SET NAMES utf8mb4 */;
 
+CREATE DATABASE IF NOT EXISTS `topher_db`
+CHARACTER SET utf8mb4
+COLLATE utf8mb4_unicode_ci;
+
+USE `topher_db`;
+
+SET FOREIGN_KEY_CHECKS = 0;
+
 --
 -- Base de datos: `topher_db`
 --
@@ -697,6 +705,8 @@ ALTER TABLE `tarifas`
 ALTER TABLE `usuarios`
   ADD CONSTRAINT `fk_usuarios_rol` FOREIGN KEY (`role_id`) REFERENCES `roles` (`id`),
   ADD CONSTRAINT `fk_usuarios_status` FOREIGN KEY (`status_id`) REFERENCES `statuses` (`id`);
+
+SET FOREIGN_KEY_CHECKS = 1;
 COMMIT;
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;

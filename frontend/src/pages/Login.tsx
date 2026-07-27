@@ -33,8 +33,32 @@ const Login = () => {
         navigate('/mis-reservas');       // Usuario registrado
       }
     } catch (err: any) {
-      const detail = err?.response?.data?.detail;
-      setError(detail || 'Credenciales incorrectas. Por favor intenta de nuevo.');
+      const resp = err?.response?.data;
+      let message = 'Error al iniciar sesión. Intenta de nuevo.';
+
+      if (resp) {
+        if (typeof resp.detail === 'string') message = resp.detail;
+        else if (Array.isArray(resp.non_field_errors) && resp.non_field_errors.length) message = String(resp.non_field_errors[0]);
+        else {
+          // Field-specific errors (e.g., {nombre_usuario: ['...']}) -> take first
+          const firstKey = Object.keys(resp)[0];
+          const val = resp[firstKey];
+          if (Array.isArray(val) && val.length) message = String(val[0]);
+          else if (typeof val === 'string') message = val;
+        }
+      }
+
+      // Normalize common backend texts to friendly, modern Spanish
+      if (message.toLowerCase().includes('credenciales inválidas') || message.toLowerCase().includes('credenciales incorrectas')) {
+        message = 'Usuario o contraseña incorrectos. Verifica tus datos o regístrate si no tienes cuenta.';
+      } else if (message.toLowerCase().includes('bloqueada')) {
+        // Keep backend message but make it friendlier
+        message = message.replace('Cuenta bloqueada', 'Cuenta bloqueada');
+      } else if (message.toLowerCase().includes('no se ha proporcionado') || message.toLowerCase().includes('no se proveyeron')) {
+        message = 'Faltan credenciales. Por favor completa usuario y contraseña.';
+      }
+
+      setError(message);
     } finally {
       setLoading(false);
     }

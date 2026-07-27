@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Flame, ShoppingCart, Loader2, X, Clock, Package, ChevronRight } from 'lucide-react';
 import api, { BACKEND_HOST } from '../api/client';
+import axios from 'axios';
 
 export interface Servicio {
   id: number;
@@ -85,15 +86,43 @@ const Services = () => {
   const [servicios, setServicios] = useState<Servicio[]>(localServicios);
   const [loading, setLoading] = useState(true);
   const [selectedService, setSelectedService] = useState<Servicio | null>(null);
+  const [columns, setColumns] = useState<number>(3);
+
+  // Detect responsive columns (matches Tailwind breakpoints used in this project)
+  useEffect(() => {
+    const calc = () => {
+      const w = window.innerWidth;
+      if (w >= 1024) setColumns(3); // lg
+      else if (w >= 768) setColumns(2); // md
+      else setColumns(1); // sm
+    };
+    calc();
+    window.addEventListener('resize', calc);
+    return () => window.removeEventListener('resize', calc);
+  }, []);
 
   const resolveImageUrl = (url: string) => {
+    if (!url) return '';
     if (url.startsWith('http')) return url;
     if (url.startsWith('/img/') || url.startsWith('img/')) return url;
     return `${BACKEND_HOST}${url}`;
   };
 
+  // Explicit mapping of service id -> image file in frontend/public/img
+  const serviceImageMap: Record<number, string> = {
+    1001: '/img/gemini-1.png', // Máquina de Humo Profesional
+    1002: '/img/gemini-2.png', // Máquina de Chispas Frías
+    1003: '/img/gemini-3.png', // Máquina de Burbuja & CO2
+    1004: '/img/gemini-4.png', // Control de Iluminación Inteligente
+    1005: '/img/gemini-5.png', // Generador de Vapor Frío
+    1006: '/img/gemini-6.png', // Equipo de Proyección LED
+  };
+
+  // Fallback images located in frontend/public/img (used if no mapping available)
+  const defaultImages = ['/img/gemini-1.png','/img/gemini-2.png','/img/gemini-3.png','/img/gemini-4.png','/img/gemini-5.png','/img/gemini-6.png'];
+
   useEffect(() => {
-    api.get('/servicios/')
+    axios.get(`${BACKEND_HOST}/api/servicios/`)
       .then(res => {
         const data = Array.isArray(res.data) ? res.data : res.data.results || [];
         if (data.length > 0) {
@@ -144,50 +173,72 @@ const Services = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 animate-slide-up">
-        {servicios.map((servicio) => (
-          <div
-            key={servicio.id}
-            className="glass-card group hover:bg-surface/60 transition-all duration-300 hover:-translate-y-2 cursor-pointer"
-            onClick={() => setSelectedService(servicio)}
-          >
-            <div className="relative aspect-[16/10] rounded-[1.25rem] overflow-hidden mb-6 bg-surface/50 border border-white/5">
-              {servicio.imagenes?.[0] ? (
-                <img 
-                  src={resolveImageUrl(servicio.imagenes[0].url_imagen)} 
-                  alt={servicio.nombre}
-                  className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-1000"
-                />              ) : (
-                <div className="flex flex-col items-center justify-center h-full opacity-20">
-                  <Flame className="w-16 h-16 mb-2" />
-                  <span className="text-[10px] font-bold uppercase tracking-widest">Topher Spec</span>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 items-stretch animate-slide-up">
+        {servicios.map((servicio, idx) => (
+          (() => {
+            const imageUrl = servicio.imagenes?.[0]?.url_imagen
+              ? resolveImageUrl(servicio.imagenes![0].url_imagen)
+              : (serviceImageMap[servicio.id] || defaultImages[idx % defaultImages.length]);
+            return (
+              <div
+                key={servicio.id}
+                className="glass-card group hover:bg-surface/60 transition-all duration-300 hover:-translate-y-2 cursor-pointer flex flex-col h-full p-6"
+                onClick={() => setSelectedService(servicio)}
+              >
+                <div className="relative aspect-[16/10] rounded-[1.25rem] overflow-hidden mb-6 bg-surface/50 border border-white/5 flex-shrink-0">
+                  <img 
+                    src={imageUrl} 
+                    alt={servicio.nombre}
+                    className="w-full h-full object-cover transition-transform duration-700 scale-100 group-hover:scale-110"
+                  />
+                  <div className="absolute top-4 left-4">
+                    <span className="px-3 py-1 rounded-lg bg-black/60 backdrop-blur-md border border-white/10 text-[10px] font-bold uppercase tracking-widest text-primary">
+                      {servicio.categoria_nombre}
+                    </span>
+                  </div>
                 </div>
-              )}
-              <div className="absolute top-4 left-4">
-                <span className="px-3 py-1 rounded-lg bg-black/60 backdrop-blur-md border border-white/10 text-[10px] font-bold uppercase tracking-widest text-primary">
-                  {servicio.categoria_nombre}
-                </span>
-              </div>
-            </div>
 
-            <h3 className="text-2xl font-bold mb-3 group-hover:text-primary transition-colors">{servicio.nombre}</h3>
-            <p className="text-white/50 text-sm mb-8 line-clamp-3 leading-relaxed">
-              {servicio.descripcion}
-            </p>
+                <h3 className="text-2xl font-bold mb-3 group-hover:text-primary transition-colors">{servicio.nombre}</h3>
+                <p className="text-white/50 text-sm mb-8 line-clamp-3 leading-relaxed">
+                  {servicio.descripcion}
+                </p>
 
-            <div className="flex items-center justify-between mt-auto pt-6 border-t border-white/5">
-              <div>
-                <span className="text-[10px] text-white/30 block uppercase tracking-widest mb-1">Inversión desde</span>
-                <span className="text-xl font-display font-black text-white">
-                  ${parseFloat(servicio.tarifas[0]?.precio_unitario || '0').toLocaleString()}
-                </span>
+                <div className="flex items-center justify-between mt-auto pt-6 border-t border-white/5">
+                  <div>
+                    <span className="text-[10px] text-white/30 block uppercase tracking-widest mb-1">Inversión desde</span>
+                    <span className="text-xl font-display font-black text-white">
+                      ${parseFloat(servicio.tarifas[0]?.precio_unitario || '0').toLocaleString()}
+                    </span>
+                  </div>
+                  <div className="bg-primary/10 group-hover:bg-primary text-primary group-hover:text-white p-3 rounded-2xl transition-all duration-300">
+                    <ChevronRight className="w-6 h-6" />
+                  </div>
+                </div>
               </div>
-              <div className="bg-primary/10 group-hover:bg-primary text-primary group-hover:text-white p-3 rounded-2xl transition-all duration-300">
-                <ChevronRight className="w-6 h-6" />
-              </div>
-            </div>
-          </div>
+            );
+          })()
         ))}
+        {(() => {
+          const missing = (columns - (servicios.length % columns)) % columns;
+          return Array.from({ length: missing }).map((_, i) => (
+            <div key={`filler-${i}`} className="glass-card group transition-all duration-300 flex flex-col h-full p-6 opacity-90">
+              <div className="relative aspect-[16/10] rounded-[1.25rem] overflow-hidden mb-6 bg-surface/60 border border-white/5 flex-shrink-0">
+                <img src="/img/gemini-1.png" alt="Otros servicios" className="w-full h-full object-cover" />
+              </div>
+              <h3 className="text-2xl font-bold mb-3">Otros Servicios</h3>
+              <p className="text-white/50 text-sm mb-8 leading-relaxed">Contáctanos para más opciones y paquetes personalizados.</p>
+              <div className="flex items-center justify-between mt-auto pt-6 border-t border-white/5">
+                <div>
+                  <span className="text-[10px] text-white/30 block uppercase tracking-widest mb-1">Consulta</span>
+                  <span className="text-xl font-display font-black text-white">$s/</span>
+                </div>
+                <div className="bg-primary/10 text-primary p-3 rounded-2xl">
+                  <ChevronRight className="w-6 h-6" />
+                </div>
+              </div>
+            </div>
+          ));
+        })()}
       </div>
 
       {/* Service Detail Modal */}
@@ -199,14 +250,14 @@ const Services = () => {
           }}
         >
           <div 
-            className="glass-card max-w-4xl w-full bg-surface/80 p-0 overflow-hidden grid grid-cols-1 md:grid-cols-2 h-full md:h-auto md:max-h-[85vh] animate-slide-up"
+            className="glass-card max-w-5xl w-full bg-surface/80 p-0 overflow-hidden grid grid-cols-1 md:grid-cols-2 md:max-h-[80vh] max-h-[90vh] rounded-[1rem] animate-slide-up"
           >
               <div className="relative h-64 md:h-full bg-background">
-                {selectedService.imagenes?.[0] ? (
-                 <img src={resolveImageUrl(selectedService.imagenes[0].url_imagen)} className="w-full h-full object-cover" />
-                ) : (
-                   <div className="w-full h-full flex items-center justify-center bg-surface"><Flame className="w-20 h-20 text-white/10" /></div>
-                )}
+                {(() => {
+                  const idx = servicios.findIndex(s => s.id === selectedService.id);
+                  const modalImage = selectedService.imagenes?.[0]?.url_imagen ? resolveImageUrl(selectedService.imagenes![0].url_imagen) : defaultImages[(idx >= 0 ? idx : 0) % defaultImages.length];
+                  return <img src={modalImage} className="w-full h-full object-cover" />;
+                })()}
                 <button onClick={() => setSelectedService(null)} className="md:hidden absolute top-4 right-4 bg-black/50 p-2 rounded-full"><X /></button>
               </div>
               

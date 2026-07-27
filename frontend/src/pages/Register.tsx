@@ -21,26 +21,40 @@ const Register = () => {
     setLoading(true);
     setError('');
 
-    if (formData.password.length < 8) {
+    // Normalize inputs: trim and remove accidental whitespace in username
+    const cleaned = {
+      ...formData,
+      nombre_completo: formData.nombre_completo.trim(),
+      nombre_usuario: formData.nombre_usuario.replace(/\s+/g, ''),
+      correo: formData.correo.trim(),
+      telefono: formData.telefono.trim()
+    };
+
+    if (cleaned.password.length < 8) {
       setError('La contraseña debe tener al menos 8 caracteres.');
       setLoading(false);
       return;
     }
 
-    if (formData.password !== formData.confirm_password) {
+    if (cleaned.password !== cleaned.confirm_password) {
       setError('Las contraseñas no coinciden.');
       setLoading(false);
       return;
     }
 
-    if (formData.nombre_usuario.includes(' ')) {
-      setError('El nombre de usuario no puede contener espacios.');
+    if (!cleaned.nombre_usuario) {
+      setError('El nombre de usuario no puede estar vacío o solo contener espacios.');
       setLoading(false);
       return;
     }
 
+    // If username was changed by cleaning, update the visible form so the user sees the sanitized value
+    if (cleaned.nombre_usuario !== formData.nombre_usuario) {
+      setFormData(cleaned);
+    }
+
     try {
-      await api.post('/register/', formData);
+      await api.post('/register/', cleaned);
       navigate('/login');
     } catch (err: any) {
       const detail = err?.response?.data?.detail;

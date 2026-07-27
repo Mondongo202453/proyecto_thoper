@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { Calendar, MapPin, Users, Info, Send, CheckCircle2, Loader2, Plus, Trash2 } from 'lucide-react';
-import api from '../api/client';
+import api, { BACKEND_HOST } from '../api/client';
+import axios from 'axios';
 import { Servicio } from './Services';
 
 const BookingForm = () => {
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [cotizacionUrl, setCotizacionUrl] = useState<string | null>(null);
   const [serviciosDisponibles, setServiciosDisponibles] = useState<Servicio[]>([]);
   const [error, setError] = useState('');
   
@@ -22,7 +24,9 @@ const BookingForm = () => {
   });
 
   useEffect(() => {
-    api.get('/servicios/')
+    // Use a direct axios request to the backend without the default api instance
+    // to avoid sending an Authorization header that could cause a 401 for anonymous endpoints
+    axios.get(`${BACKEND_HOST}/api/servicios/`)
       .then(res => {
         const servicios = Array.isArray(res.data) ? res.data : res.data.results || [];
         setServiciosDisponibles(servicios);
@@ -73,14 +77,124 @@ const BookingForm = () => {
 
     setLoading(true);
     try {
-      const response = await api.post('/reservas/', formData);
-      setSubmitted(true);
-    } catch (err: any) {
-      console.error('Error creating reservation:', err);
-      const errorMsg = err?.response?.data?.detail || 
-                       err?.response?.data?.servicios_contratados?.[0] ||
-                       'Error al crear la reserva. Asegúrate de estar logueado.';
-      setError(typeof errorMsg === 'string' ? errorMsg : 'Error desconocido');
+      // Ensure user has an access token
+      const token = localStorage.getItem('access_token');
+      if (!token || token === 'null' || token.trim().length === 0) {
+        setError('Debes iniciar sesión para crear una reserva.');
+        setLoading(false);
+        // redirect to login after a short delay so user sees the message
+        setTimeout(() => { window.location.href = '/login'; }, 900);
+        return;
+      }
+
+      // Normalize numeric fields before sending to backend
+      const payload = {
+        ...formData,
+        asistentes: Number(formData.asistentes) || 0,
+        // Workaround: include a default status id (e.g., 4 = Pendiente) so backend doesn't reject missing status
+        status: 4,
+        servicios_contratados: formData.servicios_contratados.map((s: any) => ({
+          servicio: Number(s.servicio),
+          tarifa: Number(s.tarifa),
+          cantidad: Number(s.cantidad) || 1,
+          duracion_horas: Number(s.duracion_horas) || 1,
+        }))
+      };
+
+      // Send request with explicit Authorization header (defensive)
+      try {
+        const tokenHeader = 'Bearer ' + token;
+        const response = await api.post('/reservas/', payload, { headers: { Authorization: tokenHeader } });
+        const reserva = response.data;
+        setSubmitted(true);
+        // Try to fetch the generated cotización for this reserva
+        try {
+          // Prefer querying the cotizaciones endpoint for this reserva
+          const cotResp = await api.get('/cotizaciones/', { headers: { Authorization: tokenHeader }, params: { reserva: reserva.id } });
+          const cotizaciones = Array.isArray(cotResp.data) ? cotResp.data : cotResp.data.results || [];
+          if (cotizaciones.length > 0) {
+            const latest = cotizaciones[0];
+            // url_pdf may be relative ("/media/...") — build full URL
+            const pdfPath = latest.url_pdf || latest.url || null;
+            if (pdfPath) {
+              const full = pdfPath.startsWith('http') ? pdfPath : `${BACKEND_HOST}${pdfPath}`;
+              setCotizacionUrl(full);
+            }
+          }
+        } catch (fetchCotErr) {
+          console.warn('No se pudo obtener la cotización inmediatamente:', fetchCotErr);
+        }
+      } catch (postErr: any) {
+        console.error('Initial reservation POST error:', postErr);
+        // If unauthorized, attempt a manual refresh using refresh_token and retry once
+        if (postErr?.response?.status === 401) {
+          const refreshToken = localStorage.getItem('refresh_token');
+          if (refreshToken && refreshToken !== 'null') {
+            try {
+              const refreshResp = await axios.post(`${BACKEND_HOST}/api/token/refresh/`, { refresh: refreshToken });
+              const newAccess = refreshResp.data.access || refreshResp.data.token || refreshResp.data.access_token;
+              const newRefresh = refreshResp.data.refresh || null;
+              if (newAccess) {
+                localStorage.setItem('access_token', newAccess);
+                if (newRefresh) localStorage.setItem('refresh_token', newRefresh);
+                // retry request with new access token
+                try {
+                  const retryResp = await api.post('/reservas/', payload, { headers: { Authorization: 'Bearer ' + newAccess } });
+                  setSubmitted(true);
+                  return;
+                } catch (retryErr: any) {
+                  console.error('Retry reservation POST error:', retryErr);
+                  // fallthrough to show error
+                  postErr = retryErr;
+                }
+              } else {
+                // no access in refresh response
+                localStorage.removeItem('access_token');
+                localStorage.removeItem('refresh_token');
+                setError('Tu sesión expiró. Por favor inicia sesión de nuevo.');
+                setTimeout(() => { window.location.href = '/login'; }, 900);
+                setLoading(false);
+                return;
+              }
+            } catch (refreshFail: any) {
+              console.error('Token refresh failed:', refreshFail);
+              localStorage.removeItem('access_token');
+              localStorage.removeItem('refresh_token');
+              setError('Tu sesión expiró. Por favor inicia sesión de nuevo.');
+              setTimeout(() => { window.location.href = '/login'; }, 900);
+              setLoading(false);
+              return;
+            }
+          } else {
+            setError('Debes iniciar sesión para crear una reserva.');
+            setTimeout(() => { window.location.href = '/login'; }, 900);
+            setLoading(false);
+            return;
+          }
+        }
+
+        // Build a detailed error message if available
+        const status = postErr?.response?.status;
+        const data = postErr?.response?.data;
+        let detailed = '';
+        if (status) detailed += `Código ${status}. `;
+        if (data) {
+          if (typeof data === 'string') detailed += data;
+          else if (data.detail) detailed += String(data.detail);
+          else if (data.non_field_errors) detailed += String(data.non_field_errors[0]);
+          else if (data.servicios_contratados) {
+            detailed += String(data.servicios_contratados[0]);
+          } else {
+            // show JSON snippet
+            try { detailed += JSON.stringify(data); } catch(e) { /* ignore */ }
+          }
+        }
+        if (!detailed) detailed = 'Error al crear la reserva. Por favor revisa los datos.';
+        setError(detailed);
+      }
+    } catch (errOuter: any) {
+      console.error('Unexpected error preparing request:', errOuter);
+      setError('Error inesperado al preparar la solicitud. Intenta de nuevo.');
     } finally {
       setLoading(false);
     }
@@ -96,7 +210,17 @@ const BookingForm = () => {
         <p className="text-white/60 mb-8">
           Hemos recibido tu solicitud. Un asesor se pondrá en contacto contigo pronto y hemos enviado la cotización a tu correo.
         </p>
-        <button onClick={() => window.location.reload()} className="btn-primary">Nueva Solicitud</button>
+        <div className="flex flex-col items-center gap-4">
+          {cotizacionUrl ? (
+            <a href={cotizacionUrl} target="_blank" rel="noreferrer" className="btn-primary inline-flex items-center gap-2">
+              Descargar Cotización
+            </a>
+          ) : (
+            <p className="text-sm text-white/50">La cotización se está generando. Si no aparece el enlace automáticamente, revisa tu correo o vuelve a intentar en unos segundos.</p>
+          )}
+
+          <button onClick={() => window.location.reload()} className="btn-primary/outline mt-4">Nueva Solicitud</button>
+        </div>
       </div>
     );
   }

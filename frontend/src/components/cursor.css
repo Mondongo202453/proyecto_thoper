@@ -1,0 +1,24 @@
+.custom-cursor {
+  position: fixed;
+  top: 0; left: 0;
+  width: 14px; height: 14px;
+  border-radius: 9999px;
+  background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.95), rgba(255,255,255,0.6) 10%, rgba(255,138,0,0.95) 40%);
+  box-shadow: 0 6px 20px rgba(255,138,0,0.18), 0 2px 6px rgba(0,0,0,0.45);
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  transition: width 160ms ease, height 160ms ease, background 160ms ease, opacity 200ms ease, box-shadow 160ms ease;
+  z-index: 99999;
+  mix-blend-mode: screen;
+  opacity: 0;
+}
+
+.custom-cursor.cursor--hover {
+  width: 36px;
+  height: 36px;
+  background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.95), rgba(255,255,255,0.6) 12%, rgba(255,138,0,0.95) 45%);
+  box-shadow: 0 12px 40px rgba(255,138,0,0.28), 0 4px 14px rgba(0,0,0,0.45);
+}
+
+/* Cursor styles are disabled — custom cursor removed by user request */
+/* No global cursor: none rule to preserve native pointer */

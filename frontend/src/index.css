@@ -37,10 +37,19 @@ body {
 @layer components {
   .btn-primary {
     @apply inline-flex items-center justify-center w-full sm:w-auto text-center bg-[var(--color-primary)] hover:bg-[var(--color-accent)] text-white px-6 py-2.5 rounded-full font-semibold transition-all duration-300 active:scale-95 shadow-[0_0_0_1px_rgba(255,255,255,0.06),0_12px_30px_rgba(255,138,0,0.22)];
+    /* Apply 3D button look globally */
+    transition: transform 180ms cubic-bezier(.2,.9,.2,1), box-shadow 180ms ease;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.45), inset 0 -6px 0 rgba(0,0,0,0.12);
+    transform: translateY(0);
   }
+
+  .btn-primary:hover { transform: translateY(-4px); box-shadow: 0 18px 44px rgba(255,138,0,0.18), inset 0 -6px 0 rgba(0,0,0,0.06); }
+  .btn-primary:active { transform: translateY(1px) scale(0.995); }
 
   .btn-outline {
     @apply inline-flex items-center justify-center w-full sm:w-auto text-center border border-white/15 hover:bg-white/8 text-white px-6 py-2.5 rounded-full font-semibold transition-all duration-300 active:scale-95;
+    /* subtle 3D for outline buttons */
+    transition: transform 180ms cubic-bezier(.2,.9,.2,1), box-shadow 180ms ease;
   }
 
   .glass-card {
@@ -74,11 +83,16 @@ body {
 
   .page-title {
     @apply text-4xl md:text-5xl font-display font-black tracking-tighter uppercase;
+    /* 3D text effect for main titles */
+    transition: transform 260ms cubic-bezier(.2,.9,.2,1), text-shadow 260ms ease, color 260ms ease;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.18), 0 6px 16px rgba(0,0,0,0.14);
   }
 
   .page-subtitle {
     @apply text-white/45 max-w-2xl;
+    transition: transform 200ms ease, text-shadow 200ms ease;
   }
+
 
   .panel-surface {
     @apply rounded-[1.5rem] border border-white/10 bg-[linear-gradient(145deg,rgba(255,255,255,0.04),rgba(255,255,255,0.02))] backdrop-blur-xl shadow-[0_20px_60px_rgba(0,0,0,0.35)];
@@ -90,6 +104,33 @@ body {
 }
 
 /* Custom scrollbar */
+
+/* 3D text and button styles */
+.text-3d {
+  transition: transform 260ms cubic-bezier(.2,.9,.2,1), text-shadow 260ms ease, color 260ms ease;
+  text-shadow: 0 2px 4px rgba(0,0,0,0.18), 0 6px 16px rgba(0,0,0,0.14);
+}
+.text-3d:hover {
+  transform: translateY(-4px) scale(1.01);
+  text-shadow: 0 4px 8px rgba(0,0,0,0.18), 0 10px 26px rgba(0,0,0,0.18);
+}
+
+.btn-3d {
+  transition: transform 180ms cubic-bezier(.2,.9,.2,1), box-shadow 180ms ease;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.45), inset 0 -6px 0 rgba(0,0,0,0.12);
+  transform: translateY(0);
+}
+.btn-3d:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 18px 44px rgba(255,138,0,0.18), inset 0 -6px 0 rgba(0,0,0,0.06);
+}
+.btn-3d:active { transform: translateY(1px) scale(0.995); }
+
+/* Smooth page load transitions */
+body { --page-opacity: 0; }
+.page-visible { animation: pageFadeIn 420ms ease-out forwards; }
+@keyframes pageFadeIn { to { --page-opacity: 1; opacity: 1; transform:none; } }
+
 ::-webkit-scrollbar {
   width: 8px;
 }
@@ -133,4 +174,15 @@ body {
 }
 .animate-fade-in {
   animation: fadeIn 0.3s ease-out both;
+}
+
+/* Preserve original text colors while keeping 3D effects */
+/* Apply only where classes are used, without overriding color utilities or gradients */
+.text-3d, .btn-3d {
+  color: inherit !important;
+}
+
+/* Keep headings using their defined colors */
+h1, h2, h3, h4, h5, h6 {
+  color: inherit;
 }

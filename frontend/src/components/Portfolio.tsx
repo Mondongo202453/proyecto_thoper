@@ -81,6 +81,20 @@ const Portfolio = () => {
   const [loading, setLoading] = useState(false);
   const [selectedMedia, setSelectedMedia] = useState<string | null>(null);
   const [filter, setFilter] = useState('Todos');
+  const [columns, setColumns] = useState<number>(3);
+
+  // Responsive column detection to fill grid rows when necessary
+  useEffect(() => {
+    const calc = () => {
+      const w = window.innerWidth;
+      if (w >= 1024) setColumns(3);
+      else if (w >= 768) setColumns(2);
+      else setColumns(1);
+    };
+    calc();
+    window.addEventListener('resize', calc);
+    return () => window.removeEventListener('resize', calc);
+  }, []);
 
   useEffect(() => {
     setLoading(true);
@@ -147,19 +161,19 @@ const Portfolio = () => {
       </div>
 
       {/* Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 items-stretch">
         {filteredEventos.map((evento) => (
           <div
             key={evento.id}
-            className="glass-card group relative cursor-pointer overflow-hidden p-0 transition-all duration-300 hover:-translate-y-2 animate-fade-in-scale"
+            className="glass-card group relative cursor-pointer overflow-hidden transition-all duration-300 hover:-translate-y-2 animate-fade-in-scale flex flex-col h-full"
             onClick={() => setSelectedMedia(evento.multimedia[0]?.url_media)}
           >
-              <div className="aspect-[4/5] overflow-hidden">
+              <div className="aspect-[4/5] overflow-hidden flex-shrink-0">
                 {evento.multimedia?.[0] ? (
                   <img 
                     src={resolveMediaUrl(evento.multimedia[0].url_media)} 
                     alt={evento.nombre}
-                    className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-700 scale-110 group-hover:scale-100"
+                    className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-transform duration-700 scale-100 group-hover:scale-105"
                   />
                 ) : (
                   <div className="w-full h-full bg-surface flex items-center justify-center">
@@ -179,6 +193,29 @@ const Portfolio = () => {
               </div>
           </div>
         ))}
+        {(() => {
+          const missing = (columns - (filteredEventos.length % columns)) % columns;
+          return Array.from({ length: missing }).map((_, i) => (
+            <div key={`p-filler-${i}`} className="glass-card group relative overflow-hidden transition-all duration-300 flex flex-col h-full p-0">
+              <div className="aspect-[4/5] overflow-hidden flex-shrink-0">
+                <img src="/portfolio/concert-1.png" alt="Galería" className="w-full h-full object-cover" />
+              </div>
+              <div className="p-6">
+                <h3 className="text-2xl font-display font-bold text-white mb-2">Más trabajos</h3>
+                <p className="text-white/60 text-sm mb-6">Descubre más eventos y producciones que hemos realizado para clientes.</p>
+                <div className="flex items-center justify-between mt-auto pt-6 border-t border-white/5">
+                  <div>
+                    <span className="text-[10px] text-white/30 block uppercase tracking-widest mb-1">Ver más</span>
+                    <span className="text-xl font-display font-black text-white">—</span>
+                  </div>
+                  <div className="bg-primary/10 text-primary p-3 rounded-2xl">
+                    <ChevronRight className="w-6 h-6" />
+                  </div>
+                </div>
+              </div>
+            </div>
+          ));
+        })()}
       </div>
 
       {/* Lightbox */}
