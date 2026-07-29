@@ -6,9 +6,10 @@ django.setup()
 
 from usuarios.models import Usuario
 
-username = os.getenv('DJANGO_ADMIN_USERNAME', 'admin')
-email = os.getenv('DJANGO_ADMIN_EMAIL', 'admin@topher.com')
-password = os.getenv('DJANGO_ADMIN_PASSWORD')
+from decouple import config
+username = config('DJANGO_ADMIN_USERNAME', default='admin')
+email = config('DJANGO_ADMIN_EMAIL', default='admin@topher.com')
+password = config('DJANGO_ADMIN_PASSWORD', default=None)
 
 if not password:
     raise ValueError('DJANGO_ADMIN_PASSWORD no está definido. Defínelo en el entorno o en el archivo .env local antes de ejecutar este script.')
