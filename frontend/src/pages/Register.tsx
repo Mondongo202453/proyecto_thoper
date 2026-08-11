@@ -26,9 +26,21 @@ const Register = () => {
       ...formData,
       nombre_completo: formData.nombre_completo.trim(),
       nombre_usuario: formData.nombre_usuario.replace(/\s+/g, ''),
-      correo: formData.correo.trim(),
+      correo: formData.correo.trim().toLowerCase(),
       telefono: formData.telefono.trim()
     };
+
+    if (!cleaned.nombre_completo) {
+      setError('El nombre completo no puede estar vacío.');
+      setLoading(false);
+      return;
+    }
+
+    if (!cleaned.nombre_usuario) {
+      setError('El nombre de usuario no puede estar vacío o solo contener espacios.');
+      setLoading(false);
+      return;
+    }
 
     if (cleaned.password.length < 8) {
       setError('La contraseña debe tener al menos 8 caracteres.');
@@ -40,17 +52,6 @@ const Register = () => {
       setError('Las contraseñas no coinciden.');
       setLoading(false);
       return;
-    }
-
-    if (!cleaned.nombre_usuario) {
-      setError('El nombre de usuario no puede estar vacío o solo contener espacios.');
-      setLoading(false);
-      return;
-    }
-
-    // If username was changed by cleaning, update the visible form so the user sees the sanitized value
-    if (cleaned.nombre_usuario !== formData.nombre_usuario) {
-      setFormData(cleaned);
     }
 
     try {

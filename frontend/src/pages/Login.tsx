@@ -14,7 +14,8 @@ const Login = () => {
     setLoading(true);
     setError('');
     try {
-      const res = await api.post('/token/', formData);
+      const cleanedIdentifier = formData.nombre_usuario.trim();
+      const res = await api.post('/token/', { nombre_usuario: cleanedIdentifier, password: formData.password });
       const { access, refresh, user } = res.data;
 
       localStorage.setItem('access_token', access);

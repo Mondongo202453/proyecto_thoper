@@ -25,21 +25,21 @@ from .serializers import (
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
     def validate(self, attrs):
         # Determinar si es correo o username
-        identifier = attrs.get(self.username_field, '')
+        identifier = attrs.get(self.username_field, '').strip()
+        usuario = None
         try:
             if '@' in identifier:
-                usuario = Usuario.objects.get(correo=identifier)
+                usuario = Usuario.objects.get(correo__iexact=identifier)
             else:
-                usuario = Usuario.objects.get(nombre_usuario=identifier)
+                usuario = Usuario.objects.get(nombre_usuario__iexact=identifier)
         except Usuario.DoesNotExist:
-            raise serializers.ValidationError("Credenciales inválidas.")
+            # Evitar timing attacks
+            Usuario().set_password(attrs.get('password'))
+            raise serializers.ValidationError('Credenciales inválidas.')
 
         # Verificar bloqueo (RN05)
         if usuario.bloqueado_hasta and usuario.bloqueado_hasta > timezone.now():
-            minutos_restantes = int((usuario.bloqueado_hasta - timezone.now()).total_seconds() / 60) + 1
-            raise serializers.ValidationError(
-                f"Cuenta bloqueada por {minutos_restantes} minuto(s) debido a múltiples intentos fallidos."
-            )
+            raise serializers.ValidationError('Credenciales inválidas.')
 
         # Autenticar
         from django.contrib.auth import authenticate
@@ -50,7 +50,6 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         )
 
         if user_auth is None:
-            # Incrementar intentos fallidos
             usuario.intentos_fallidos += 1
             max_intentos = getattr(settings, 'MAX_LOGIN_ATTEMPTS', 5)
             lockout_min = getattr(settings, 'LOGIN_LOCKOUT_MINUTES', 15)
@@ -59,13 +58,10 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
                 usuario.bloqueado_hasta = timezone.now() + datetime.timedelta(minutes=lockout_min)
                 usuario.intentos_fallidos = 0
                 usuario.save(update_fields=['intentos_fallidos', 'bloqueado_hasta'])
-                raise serializers.ValidationError(
-                    f"Has superado los {max_intentos} intentos. Cuenta bloqueada por {lockout_min} minutos."
-                )
-            usuario.save(update_fields=['intentos_fallidos'])
-            raise serializers.ValidationError(
-                f"Credenciales inválidas. Intentos restantes: {max_intentos - usuario.intentos_fallidos}."
-            )
+            else:
+                usuario.save(update_fields=['intentos_fallidos'])
+
+            raise serializers.ValidationError('Credenciales inválidas.')
 
         # Login exitoso — resetear intentos
         usuario.intentos_fallidos = 0

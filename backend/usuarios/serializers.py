@@ -1,3 +1,4 @@
+import re
 from rest_framework import serializers
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
@@ -42,7 +43,18 @@ class RegisterSerializer(serializers.ModelSerializer):
         model = Usuario
         fields = ('nombre_completo', 'nombre_usuario', 'correo', 'password', 'confirm_password', 'telefono')
 
+    def validate_nombre_completo(self, value):
+        value = value.strip()
+        if not value:
+            raise serializers.ValidationError('El nombre completo es obligatorio.')
+        if len(value) < 4:
+            raise serializers.ValidationError('El nombre completo debe tener al menos 4 caracteres.')
+        return value
+
     def validate_nombre_usuario(self, value):
+        value = value.strip()
+        if not value:
+            raise serializers.ValidationError('El nombre de usuario es obligatorio.')
         if ' ' in value:
             raise serializers.ValidationError('El nombre de usuario no debe contener espacios.')
         if len(value) < 4:
@@ -50,17 +62,33 @@ class RegisterSerializer(serializers.ModelSerializer):
         return value
 
     def validate_correo(self, value):
-        value = value.lower()
+        value = value.strip().lower()
         if Usuario.objects.filter(correo__iexact=value).exists():
             raise serializers.ValidationError('El correo ya está en uso.')
         return value
 
     def validate_password(self, value):
-        validate_password(value)
+        if len(value) < 8:
+            raise serializers.ValidationError('La contraseña debe tener al menos 8 caracteres.')
+        if not re.search(r'[A-Z]', value):
+            raise serializers.ValidationError('La contraseña debe incluir al menos una letra mayúscula.')
+        if not re.search(r'[a-z]', value):
+            raise serializers.ValidationError('La contraseña debe incluir al menos una letra minúscula.')
+        if not re.search(r'\d', value):
+            raise serializers.ValidationError('La contraseña debe incluir al menos un número.')
+        if not re.search(r'[^A-Za-z0-9]', value):
+            raise serializers.ValidationError('La contraseña debe incluir al menos un carácter especial.')
+        try:
+            validate_password(value)
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError(list(exc.messages))
         return value
 
     def validate_telefono(self, value):
         if value:
+            value = value.strip()
+            if not value:
+                return value
             validator = RegexValidator(regex=r'^[0-9+\- ]+$')
             try:
                 validator(value)
