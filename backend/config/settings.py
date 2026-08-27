@@ -184,13 +184,17 @@ MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
 # Email Configuration
-EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+EMAIL_BACKEND = config(
+    'EMAIL_BACKEND',
+    default='django.core.mail.backends.console.EmailBackend',
+)
 EMAIL_HOST = 'smtp.gmail.com'
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True
 EMAIL_HOST_USER = config('EMAIL_USER', default='')
 EMAIL_HOST_PASSWORD = config('EMAIL_PASS', default='')
 DEFAULT_FROM_EMAIL = config('EMAIL_USER', default='noreply@topherproducciones.com')
+EMAIL_TIMEOUT = config('EMAIL_TIMEOUT', default=15, cast=int)
 
 # URL del frontend (para links en correos)
 FRONTEND_URL = config('FRONTEND_URL', default='http://localhost:5173')

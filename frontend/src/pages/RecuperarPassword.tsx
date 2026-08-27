@@ -31,7 +31,6 @@ const RecuperarPassword = () => {
     try {
       const res = await api.post('/password-reset/', { correo });
       setInfo(res.data.detail || 'Revisa tu correo para el enlace de recuperación.');
-      setStep('confirm');
     } catch (err: any) {
       setError(err?.response?.data?.detail || 'Error al procesar la solicitud.');
     } finally {
@@ -74,7 +73,7 @@ const RecuperarPassword = () => {
           </h2>
           <p className="text-white/40 text-sm text-center mt-1">
             {step === 'request' && 'Ingresa tu correo y te enviaremos un enlace de recuperación.'}
-            {step === 'confirm' && 'Ingresa el token recibido y tu nueva contraseña.'}
+            {step === 'confirm' && 'Elige y confirma tu nueva contraseña.'}
             {step === 'done' && 'Tu contraseña fue actualizada exitosamente.'}
           </p>
         </div>
@@ -86,7 +85,7 @@ const RecuperarPassword = () => {
           </div>
         )}
 
-        {info && step === 'confirm' && !token && (
+        {info && step === 'request' && (
           <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs py-3 px-4 rounded-xl mb-6">
             {info}
           </div>

@@ -150,16 +150,21 @@ class PasswordResetRequestView(APIView):
         ResetToken.objects.create(usuario=usuario, token=token_str, expira_en=expira_en)
 
         frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:5173')
-        reset_url = f"{frontend_url}/reset-password?token={token_str}"
+        # Debe coincidir con la ruta definida en React (App.tsx).
+        reset_url = f"{frontend_url}/recuperar-password?token={token_str}"
 
         send_mail(
             subject='Recuperación de contraseña — Topher Producciones',
             message=f"""Hola {usuario.nombre_completo},\n\nHaz clic en el siguiente enlace para restablecer tu contraseña:\n{reset_url}\n\nEste enlace expira en 30 minutos y solo puede usarse una vez.\n\nSi no solicitaste este cambio, ignora este correo.\n\nEquipo Topher Producciones.""",
             from_email=settings.DEFAULT_FROM_EMAIL,
             recipient_list=[correo],
-            fail_silently=True,
+            # En desarrollo mostramos los problemas de SMTP en la terminal;
+            # en producción se conserva una respuesta neutra al usuario.
+            fail_silently=not settings.DEBUG,
         )
 
+        # Nunca se devuelve el token ni el enlace en la API. Solamente quien
+        # controle el correo registrado puede acceder al enlace de recuperación.
         return Response({'detail': 'Si el correo existe, recibirás un enlace de recuperación.'})
 
 
