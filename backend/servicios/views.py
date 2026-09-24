@@ -27,7 +27,7 @@ class ServicioViewSet(viewsets.ModelViewSet):
         return [permissions.IsAdminUser()]
 
     def destroy(self, request, *args, **kwargs):
-        """RN02: No eliminar servicio con reservas activas"""
+        """Elimina servicios sin reservas y archiva los que tienen historial."""
         servicio = self.get_object()
         from reservas.models import ReservationService
         tiene_reservas_activas = ReservationService.objects.filter(
@@ -39,6 +39,14 @@ class ServicioViewSet(viewsets.ModelViewSet):
                 {'detail': 'Este servicio tiene reservas asociadas (Pendiente, Confirmada o En Proceso). No puede ser eliminado.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
+        tiene_historial = ReservationService.objects.filter(servicio=servicio).exists()
+        if tiene_historial:
+            servicio.disponible = False
+            servicio.save(update_fields=['disponible'])
+            return Response({
+                'detail': 'El servicio tenía reservas históricas y fue archivado para conservar el historial.',
+                'archivado': True,
+            }, status=status.HTTP_200_OK)
         return super().destroy(request, *args, **kwargs)
 
 

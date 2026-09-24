@@ -21,13 +21,17 @@ const PrivateRoute: React.FC<PrivateRouteProps> = ({ children, allowedRoles = []
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  if (allowedRoles.length > 0 && userRaw) {
+  if (allowedRoles.length > 0) {
+    if (!userRaw) {
+      return <Navigate to="/login" state={{ from: location }} replace />;
+    }
     try {
       const user = JSON.parse(userRaw);
-      if (!allowedRoles.includes(user.role_id)) {
+      const roleId = Number(user?.role_id);
+      if (!allowedRoles.includes(roleId)) {
         // Redirigir al panel correspondiente según su rol
-        if (user.role_id === 1) return <Navigate to="/dashboard" replace />;
-        if (user.role_id === 3) return <Navigate to="/panel-staff" replace />;
+        if (roleId === 1) return <Navigate to="/dashboard" replace />;
+        if (roleId === 3) return <Navigate to="/panel-staff" replace />;
         return <Navigate to="/mis-reservas" replace />;
       }
     } catch {

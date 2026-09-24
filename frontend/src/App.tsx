@@ -1,6 +1,6 @@
 import React from 'react';
 import { Routes, Route, Link, useLocation } from 'react-router-dom';
-import { Flame, Phone, Menu, X, ChevronRight, Mail, Sparkles } from 'lucide-react';
+import { Flame, Phone, Menu, X, ChevronRight, Mail, Sparkles, LogOut } from 'lucide-react';
 
 import Services from './components/Services';
 import BookingForm from './components/BookingForm';
@@ -18,7 +18,7 @@ import Perfil from './pages/Perfil';
 // --- COMPONENTS ---
 
 const Footer = () => (
-  <footer className="py-20 px-6 border-t border-white/5 bg-background">
+  <footer className="py-14 sm:py-20 px-4 sm:px-6 border-t border-white/5 bg-background">
     <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-4 gap-12 w-full">
       <div className="md:col-span-2">
         <div className="flex flex-col mb-6">
@@ -61,14 +61,25 @@ const Footer = () => (
 const Navbar = () => {
   const [isOpen, setIsOpen] = React.useState(false);
   const [isAuthenticated, setIsAuthenticated] = React.useState(!!localStorage.getItem('access_token'));
+  const [roleId, setRoleId] = React.useState<number | null>(null);
   const location = useLocation();
+
+  const updateSession = () => {
+    setIsAuthenticated(!!localStorage.getItem('access_token'));
+    try {
+      const user = JSON.parse(localStorage.getItem('user') || 'null');
+      setRoleId(user?.role_id !== undefined && user?.role_id !== null ? Number(user.role_id) : null);
+    } catch {
+      setRoleId(null);
+    }
+  };
 
   // Actualizar autenticación cuando cambia en otra pestaña o en el mismo tab
   React.useEffect(() => {
-    const handleStorage = () => setIsAuthenticated(!!localStorage.getItem('access_token'));
+    const handleStorage = updateSession;
     window.addEventListener('storage', handleStorage);
     // También verificar al cambiar de ruta y cerrar menú móvil
-    setIsAuthenticated(!!localStorage.getItem('access_token'));
+    updateSession();
     setIsOpen(false); // Cerrar menú al navegar (evita crash AnimatePresence)
     return () => window.removeEventListener('storage', handleStorage);
   }, [location]);
@@ -80,10 +91,15 @@ const Navbar = () => {
   };
 
   const isActive = (path: string) => location.pathname === path ? 'text-primary' : 'text-white/60';
+  const accountLink = roleId === 1
+    ? { href: '/dashboard', label: 'Dashboard' }
+    : roleId === 3
+      ? { href: '/panel-staff', label: 'Panel de trabajo' }
+      : { href: '/mis-reservas', label: 'Mis reservas y avisos' };
 
   return (
-    <nav className="fixed top-0 left-0 right-0 z-[100] bg-background/55 backdrop-blur-2xl border-b border-white/10 shadow-[0_10px_40px_rgba(0,0,0,0.25)]">
-      <div className="max-w-7xl mx-auto px-6 h-24 flex items-center justify-between">
+    <nav className="fixed top-0 left-0 right-0 z-[100] isolate bg-background/95 backdrop-blur-2xl border-b border-white/10 shadow-[0_10px_40px_rgba(0,0,0,0.25)]">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 h-20 md:h-24 flex items-center justify-between">
         <Link to="/" className="flex flex-col group">
           <span className="text-3xl font-display font-black tracking-tighter uppercase leading-none group-hover:text-primary transition-colors text-3d">
             Topher
@@ -105,8 +121,11 @@ const Navbar = () => {
         <div className="hidden md:flex items-center gap-6">
           {isAuthenticated ? (
             <>
-              <Link to="/dashboard" className="text-[10px] font-bold uppercase tracking-widest border border-primary/25 px-6 py-2.5 rounded-full bg-primary/10 hover:bg-primary/20 transition-all text-primary">Dashboard</Link>
-              <button onClick={logout} className="text-[10px] font-bold uppercase tracking-widest border border-white/10 px-6 py-2.5 rounded-full hover:bg-white/5 transition-all">Salir</button>
+              <Link to={accountLink.href} className="text-[10px] font-bold uppercase tracking-widest border border-primary/25 px-6 py-2.5 rounded-full bg-primary/10 hover:bg-primary/20 transition-all text-primary">{accountLink.label}</Link>
+              <button onClick={logout} className="logout-button" aria-label="Salir">
+                <span className="logout-icon"><LogOut className="w-4 h-4" /></span>
+                <span className="logout-label">Salir</span>
+              </button>
             </>
           ) : (
             <>
@@ -117,26 +136,37 @@ const Navbar = () => {
         </div>
 
         {/* Mobile Menu Button */}
-        <button className="md:hidden p-2" onClick={() => setIsOpen(!isOpen)}>
+        <button
+          type="button"
+          aria-label={isOpen ? 'Cerrar menú' : 'Abrir menú'}
+          aria-expanded={isOpen}
+          className="md:hidden p-2 rounded-lg hover:bg-white/10 transition-colors"
+          onClick={() => setIsOpen(!isOpen)}
+        >
           {isOpen ? <X /> : <Menu />}
         </button>
       </div>
 
       {/* Mobile Nav */}
       <div 
-        className={`md:hidden fixed inset-0 top-24 bg-background z-50 p-8 flex flex-col gap-8 transition-all duration-300 ease-out ${
-          isOpen ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-4 pointer-events-none'
+        className={`md:hidden absolute top-full left-0 w-full min-h-[calc(100dvh-5rem)] max-h-[calc(100dvh-5rem)] overflow-y-auto overscroll-contain bg-[#060606] p-6 sm:p-8 flex flex-col gap-6 sm:gap-8 border-t border-white/10 shadow-[0_24px_50px_rgba(0,0,0,0.55)] transition-[opacity,visibility,transform] duration-300 ease-out ${
+          isOpen ? 'visible opacity-100 translate-y-0' : 'invisible opacity-0 -translate-y-2 pointer-events-none'
         }`}
       >
-        <Link to="/" onClick={() => setIsOpen(false)} className="text-2xl font-bold uppercase tracking-widest">Inicio</Link>
-        <Link to="/servicios" onClick={() => setIsOpen(false)} className="text-2xl font-bold uppercase tracking-widest">Servicios</Link>
-        <Link to="/portafolio" onClick={() => setIsOpen(false)} className="text-2xl font-bold uppercase tracking-widest">Portafolio</Link>
-        <Link to="/solicitud" onClick={() => setIsOpen(false)} className="text-2xl font-bold uppercase tracking-widest">Solicitud</Link>
+        <div className="flex flex-col gap-5">
+          <Link to="/" onClick={() => setIsOpen(false)} className="text-xl sm:text-2xl font-bold uppercase tracking-widest hover:text-primary transition-colors">Inicio</Link>
+          <Link to="/servicios" onClick={() => setIsOpen(false)} className="text-xl sm:text-2xl font-bold uppercase tracking-widest hover:text-primary transition-colors">Servicios</Link>
+          <Link to="/portafolio" onClick={() => setIsOpen(false)} className="text-xl sm:text-2xl font-bold uppercase tracking-widest hover:text-primary transition-colors">Portafolio</Link>
+          <Link to="/solicitud" onClick={() => setIsOpen(false)} className="text-xl sm:text-2xl font-bold uppercase tracking-widest hover:text-primary transition-colors">Solicitud</Link>
+        </div>
         <div className="mt-auto flex flex-col gap-4">
           {isAuthenticated ? (
             <>
-              <Link to="/dashboard" onClick={() => setIsOpen(false)} className="text-center py-4 border border-primary/20 rounded-xl text-primary bg-primary/10">Dashboard</Link>
-              <button onClick={logout} className="btn-primary py-4">Salir</button>
+              <Link to={accountLink.href} onClick={() => setIsOpen(false)} className="text-center py-4 border border-primary/20 rounded-xl text-primary bg-primary/10">{accountLink.label}</Link>
+              <button onClick={logout} className="logout-button logout-button--full" aria-label="Salir">
+                <span className="logout-icon"><LogOut className="w-4 h-4" /></span>
+                <span className="logout-label">Salir</span>
+              </button>
             </>
           ) : (
             <>
@@ -165,13 +195,13 @@ const Hero = () => {
           <span className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 border border-primary/20 text-[10px] font-bold uppercase tracking-[0.4em] text-primary mb-8 backdrop-blur-md">
             <Sparkles className="w-3.5 h-3.5" /> Producción de eventos de alto impacto
           </span>
-          <h1 className="text-6xl md:text-8xl font-display font-black tracking-tighter mb-8 leading-[0.85] uppercase">
+          <h1 className="text-4xl sm:text-6xl md:text-8xl font-display font-black tracking-tighter mb-6 sm:mb-8 leading-[0.9] uppercase">
             Efectos que
             <span className="block text-gradient mt-2">
               transforman el momento
             </span>
           </h1>
-          <p className="mx-auto max-w-2xl text-lg md:text-xl text-white/70 leading-relaxed mb-10">
+          <p className="mx-auto max-w-2xl text-base sm:text-lg md:text-xl text-white/70 leading-relaxed mb-8 sm:mb-10">
             Diseñamos experiencias memorables con pirotecnia, humo, confeti y efectos especiales para eventos corporativos, sociales y premium.
           </p>
 

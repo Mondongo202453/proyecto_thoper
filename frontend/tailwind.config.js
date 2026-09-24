@@ -16,8 +16,8 @@ export default {
         accent: "#F97316",
       },
       fontFamily: {
-        sans: ["Inter", "sans-serif"],
-        display: ["Montserrat", "sans-serif"],
+        sans: ["Satoshi", "sans-serif"],
+        display: ["Clash Display", "sans-serif"],
       },
     },
   },

@@ -81,8 +81,12 @@ const Register = () => {
         className="glass-card w-full max-w-lg p-10 bg-surface/30 animate-fade-in-scale"
       >
         <div className="flex flex-col items-center mb-10">
-          <div className="bg-primary p-3 rounded-2xl mb-4 shadow-xl shadow-primary/20">
-            <Flame className="w-8 h-8 text-white" />
+          <div className="w-44 sm:w-52 mb-5">
+            <img
+              src="/img/logo-topher.jpg"
+              alt="Topher Producciones"
+              className="block w-full h-auto object-contain"
+            />
           </div>
           <h2 className="text-3xl font-display font-black uppercase tracking-tight">Crea tu cuenta</h2>
           <p className="text-white/40 text-sm">Únete a la familia Topher Producciones</p>

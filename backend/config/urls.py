@@ -19,6 +19,7 @@ urlpatterns = [
     path('api/', include('portafolio.urls')),
     path('api/', include('documentos.urls')),
     path('api/', include('comunicacion.urls')),
+    path('api/', include('pagos.urls')),
 ]
 
 # Serve media files during development when DEBUG=True

@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   Flame, Calendar, MapPin, Users, Clock, FileText, Download,
   AlertTriangle, CheckCircle2, X, Loader2, ArrowLeft, ChevronRight,
-  XCircle, LogOut
+  XCircle, LogOut, Bell, RefreshCw, ChevronDown, Menu, CreditCard
 } from 'lucide-react';
-import api, { BACKEND_HOST } from '../api/client';
+import api from '../api/client';
 
 const STATUS_COLORS: Record<number, string> = {
   4: 'bg-amber-500/10 border-amber-500/30 text-amber-400',   // Pendiente
@@ -18,6 +18,14 @@ const STATUS_COLORS: Record<number, string> = {
 const STATUS_LABELS: Record<number, string> = {
   4: 'Pendiente', 5: 'Confirmada', 6: 'En Proceso', 7: 'Cancelada', 8: 'Completada'
 };
+
+const normalizeReserva = (reserva: any): Reserva => ({
+  ...reserva,
+  status_id: Number(reserva?.status_id ?? reserva?.status?.id ?? reserva?.status ?? 0),
+  status_nombre: reserva?.status_nombre || reserva?.status?.nombre || STATUS_LABELS[
+    Number(reserva?.status_id ?? reserva?.status?.id ?? reserva?.status)
+  ] || 'Desconocido',
+});
 
 interface Reserva {
   id: number;
@@ -35,6 +43,15 @@ interface Reserva {
   creado_en: string;
 }
 
+interface Notificacion {
+  id: number;
+  reserva?: number | null;
+  asunto: string;
+  mensaje: string;
+  leido: boolean;
+  enviado_en: string;
+}
+
 const MisReservas = () => {
   const [reservas, setReservas] = useState<Reserva[]>([]);
   const [loading, setLoading] = useState(true);
@@ -44,6 +61,15 @@ const MisReservas = () => {
   const [cancelLoading, setCancelLoading] = useState(false);
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
   const [documentos, setDocumentos] = useState<any[]>([]);
+  const [downloadingDocumentId, setDownloadingDocumentId] = useState<number | null>(null);
+  const [notificaciones, setNotificaciones] = useState<Notificacion[]>([]);
+  const lastNotificationId = useRef<number | null>(null);
+  const [syncing, setSyncing] = useState(false);
+  const [expandedNotificationId, setExpandedNotificationId] = useState<number | null>(null);
+  const [notificationsOpen, setNotificationsOpen] = useState(true);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [pagos, setPagos] = useState<any[]>([]);
+  const [paymentLoading, setPaymentLoading] = useState<string | null>(null);
   const navigate = useNavigate();
 
   const userRaw = localStorage.getItem('user');
@@ -58,17 +84,62 @@ const MisReservas = () => {
     const token = localStorage.getItem('access_token');
     if (!token) { navigate('/login'); return; }
     fetchReservas();
+    fetchNotificaciones();
+
+    const syncInterval = window.setInterval(() => {
+      fetchReservas(true);
+      fetchNotificaciones();
+    }, 10000);
+
+    return () => window.clearInterval(syncInterval);
   }, []);
 
-  const fetchReservas = async () => {
-    setLoading(true);
+  const fetchReservas = async (background = false) => {
+    if (!background) setLoading(true);
+    else setSyncing(true);
     try {
       const res = await api.get('/reservas/');
-      setReservas(Array.isArray(res.data) ? res.data : res.data.results || []);
+      const nextReservas = (Array.isArray(res.data) ? res.data : res.data.results || []).map(normalizeReserva);
+      setReservas(nextReservas);
+      setSelected((current) => current ? nextReservas.find((r: Reserva) => r.id === current.id) || current : current);
     } catch {
-      showToast('No se pudieron cargar tus reservas.', 'error');
+      if (!background) showToast('No se pudieron cargar tus reservas.', 'error');
     } finally {
-      setLoading(false);
+      if (!background) setLoading(false);
+      else setSyncing(false);
+    }
+  };
+
+  const fetchNotificaciones = async () => {
+    try {
+      const res = await api.get('/notificaciones/');
+      const nextNotificaciones: Notificacion[] = (Array.isArray(res.data) ? res.data : res.data.results || [])
+        .sort((a: Notificacion, b: Notificacion) =>
+          new Date(b.enviado_en).getTime() - new Date(a.enviado_en).getTime()
+        );
+      setNotificaciones(nextNotificaciones);
+
+      const newest = nextNotificaciones[0];
+      if (newest && newest.id !== lastNotificationId.current) {
+        if (lastNotificationId.current !== null) {
+          showToast(`${newest.asunto}: ${newest.mensaje}`);
+        }
+        lastNotificationId.current = newest.id;
+      }
+    } catch {
+      // La pantalla de reservas sigue funcionando aunque las notificaciones no estén disponibles.
+    }
+  };
+
+  const markNotificationRead = async (notification: Notificacion) => {
+    if (notification.leido) return;
+    try {
+      await api.patch(`/notificaciones/${notification.id}/`, { leido: true });
+      setNotificaciones((current) => current.map((item) =>
+        item.id === notification.id ? { ...item, leido: true } : item
+      ));
+    } catch {
+      showToast('No se pudo marcar el aviso como leído.', 'error');
     }
   };
 
@@ -84,6 +155,45 @@ const MisReservas = () => {
   const handleSelectReserva = (r: Reserva) => {
     setSelected(r);
     fetchDocumentos(r.id);
+    api.get(`/pagos/reserva/${r.id}/`).then((res) => setPagos(res.data || [])).catch(() => setPagos([]));
+  };
+
+  const iniciarPago = async (tipo: 'ANTICIPO' | 'TOTAL') => {
+    if (!selected) return;
+    setPaymentLoading(tipo);
+    try {
+      const response = await api.post('/pagos/crear/', { reserva_id: selected.id, tipo });
+      if (!response.data.checkout_url) throw new Error('No se recibió el enlace de pago.');
+      window.location.assign(response.data.checkout_url);
+    } catch (error: any) {
+      showToast(error?.response?.data?.detail || 'No se pudo iniciar el pago.', 'error');
+    } finally {
+      setPaymentLoading(null);
+    }
+  };
+
+  const handleDownloadDocument = async (doc: any) => {
+    setDownloadingDocumentId(doc.id);
+    try {
+      const response = await api.get(`/cotizaciones/${doc.id}/download/`, {
+        responseType: 'blob',
+      });
+      const contentType = response.headers['content-type'] || 'application/pdf';
+      const blob = new Blob([response.data], { type: contentType });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${doc.tipo || 'documento'}-topher.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (error: any) {
+      const message = error?.response?.data?.detail || 'No se pudo descargar el documento.';
+      showToast(message, 'error');
+    } finally {
+      setDownloadingDocumentId(null);
+    }
   };
 
   const handleCancelar = async () => {
@@ -112,6 +222,7 @@ const MisReservas = () => {
   const totalMonto = (r: Reserva) => {
     return r.servicios_contratados?.reduce((sum: number, s: any) => sum + parseFloat(s.precio_calculado || 0), 0) || 0;
   };
+  const unreadNotifications = notificaciones.filter((notification) => !notification.leido).length;
 
   return (
     <div className="min-h-screen bg-background text-white flex flex-col">
@@ -122,47 +233,178 @@ const MisReservas = () => {
           <div className="h-[1px] w-full bg-white/20 my-0.5" />
           <span className="text-[7px] font-medium tracking-[0.7em] uppercase text-white/40">Producciones</span>
         </Link>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2 sm:gap-4">
           <span className="hidden md:block text-xs text-white/40">
             Hola, <strong className="text-white">{user?.nombre_completo}</strong>
           </span>
-          <button onClick={logout} className="flex items-center gap-2 border border-white/10 px-4 py-2 rounded-xl text-xs font-bold text-red-400 hover:bg-red-500/10 transition-all">
-            <LogOut className="w-4 h-4" /> Salir
+          <button
+            type="button"
+            className="md:hidden rounded-lg p-2 text-white/70 transition-colors hover:bg-white/10 hover:text-white"
+            onClick={() => setMobileNavOpen((open) => !open)}
+            aria-label={mobileNavOpen ? 'Cerrar barra de navegación' : 'Abrir barra de navegación'}
+            aria-expanded={mobileNavOpen}
+            aria-controls="client-mobile-navigation"
+          >
+            {mobileNavOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+          </button>
+          <button onClick={logout} className="logout-button" aria-label="Salir">
+            <span className="logout-icon"><LogOut className="w-4 h-4" /></span>
+            <span className="logout-label">Salir</span>
           </button>
         </div>
+        {mobileNavOpen && (
+          <nav
+            id="client-mobile-navigation"
+            className="fixed inset-0 z-[60] flex min-h-dvh flex-col bg-[#060606] px-7 pb-10 pt-5 shadow-[0_20px_50px_rgba(0,0,0,0.65)] md:hidden"
+            aria-label="Navegación principal"
+          >
+            <div className="flex items-start justify-between border-b border-white/10 pb-5">
+              <Link to="/" onClick={() => setMobileNavOpen(false)} className="flex flex-col leading-none">
+                <span className="text-2xl font-display font-black tracking-tighter uppercase text-white">Topher</span>
+                <span className="mt-1 text-[7px] font-medium tracking-[0.7em] uppercase text-white/45">Producciones</span>
+              </Link>
+              <button
+                type="button"
+                onClick={() => setMobileNavOpen(false)}
+                className="rounded-lg p-1 text-white transition-colors hover:bg-white/10 hover:text-primary"
+                aria-label="Cerrar barra de navegación"
+              >
+                <X className="h-6 w-6" />
+              </button>
+            </div>
+            <div className="flex flex-col gap-7 pt-9">
+              {[
+                ['Inicio', '/'],
+                ['Servicios', '/servicios'],
+                ['Portafolio', '/portafolio'],
+                ['Solicitud', '/solicitud'],
+              ].map(([label, path], index) => (
+                <Link
+                  key={path}
+                  to={path}
+                  onClick={() => setMobileNavOpen(false)}
+                  className={`text-left text-xl font-bold uppercase tracking-[0.12em] transition-colors hover:text-primary ${
+                    index === 3 ? 'text-primary' : 'text-white'
+                  }`}
+                >
+                  {label}
+                </Link>
+              ))}
+            </div>
+          </nav>
+        )}
       </header>
 
-      <main className="flex-1 pt-28 pb-16 px-6">
+      <main className="flex-1 pt-28 pb-16 px-4 sm:px-6">
         <div className="max-w-5xl mx-auto">
           <div className="mb-10">
             <span className="text-[10px] font-bold uppercase tracking-[0.4em] text-primary">Panel de Cliente</span>
-            <h1 className="text-4xl md:text-5xl font-display font-black uppercase tracking-tight mt-2 mb-2">Mis Reservas</h1>
+            <h1 className="text-3xl sm:text-4xl md:text-5xl font-display font-black uppercase tracking-tight mt-2 mb-2">Mis Reservas</h1>
             <p className="text-white/40">Consulta el historial y estado de todas tus solicitudes.</p>
           </div>
 
           <div className="flex flex-col md:flex-row items-center justify-between gap-4 mb-8">
-            <div className="flex gap-4 text-center">
-              <div className="glass-card px-6 py-4 bg-surface/20 border-white/5">
+            <div className="flex flex-wrap gap-3 sm:gap-4 text-center">
+              <div className="glass-card px-4 sm:px-6 py-4 bg-surface/20 border-white/5">
                 <div className="text-2xl font-display font-black text-white">{reservas.length}</div>
                 <div className="text-[9px] text-white/30 uppercase tracking-widest">Total</div>
               </div>
-              <div className="glass-card px-6 py-4 bg-surface/20 border-white/5">
+              <div className="glass-card px-4 sm:px-6 py-4 bg-surface/20 border-white/5">
                 <div className="text-2xl font-display font-black text-amber-400">
                   {reservas.filter(r => r.status_id === 4).length}
                 </div>
                 <div className="text-[9px] text-white/30 uppercase tracking-widest">Pendientes</div>
               </div>
-              <div className="glass-card px-6 py-4 bg-surface/20 border-white/5">
+              <div className="glass-card px-4 sm:px-6 py-4 bg-surface/20 border-white/5">
                 <div className="text-2xl font-display font-black text-emerald-400">
                   {reservas.filter(r => r.status_id === 5).length}
                 </div>
                 <div className="text-[9px] text-white/30 uppercase tracking-widest">Confirmadas</div>
               </div>
+              <div className="glass-card px-4 sm:px-6 py-4 bg-surface/20 border-white/5">
+                <div className="text-2xl font-display font-black text-blue-400">
+                  {reservas.filter(r => r.status_id === 6).length}
+                </div>
+                <div className="text-[9px] text-white/30 uppercase tracking-widest">En proceso</div>
+              </div>
             </div>
-            <Link to="/servicios" className="btn-primary px-6 py-3 text-xs flex items-center gap-2">
-              Nueva Solicitud <ChevronRight className="w-4 h-4" />
-            </Link>
+            <div className="flex items-center gap-3">
+              <div className="hidden sm:flex items-center gap-2 text-[10px] text-white/40" aria-live="polite">
+                <RefreshCw className={`w-3.5 h-3.5 ${syncing ? 'animate-spin text-primary' : ''}`} />
+                {syncing ? 'Actualizando...' : 'Actualización automática'}
+              </div>
+              <Link to="/servicios" className="btn-primary px-6 py-3 text-xs flex items-center gap-2">
+                Nueva Solicitud <ChevronRight className="w-4 h-4" />
+              </Link>
+            </div>
           </div>
+
+          {notificaciones.length > 0 && (
+            <section className="mb-8 glass-card p-4 sm:p-5 bg-primary/5 border-primary/20" aria-label="Notificaciones">
+              <div className={`flex items-center justify-between gap-3 ${notificationsOpen ? 'mb-4' : ''}`}>
+                <div className="flex items-center gap-3">
+                  <div className="relative text-primary">
+                    <Bell className="w-5 h-5" />
+                    {unreadNotifications > 0 && (
+                      <span className="absolute -right-2 -top-2 min-w-4 h-4 px-1 rounded-full bg-primary text-[9px] font-bold text-black flex items-center justify-center">
+                        {unreadNotifications}
+                      </span>
+                    )}
+                  </div>
+                  <div>
+                    <h2 className="text-xs font-bold uppercase tracking-widest text-primary">Notificaciones</h2>
+                    <p className="text-[11px] text-white/40">{notificaciones.length} avisos recibidos</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[10px] font-semibold text-primary transition-colors hover:bg-primary/10"
+                  onClick={() => setNotificationsOpen((open) => !open)}
+                  aria-expanded={notificationsOpen}
+                  aria-controls="client-notifications-list"
+                >
+                  {notificationsOpen ? 'Ocultar' : 'Mostrar'}
+                  <ChevronDown className={`w-4 h-4 transition-transform ${notificationsOpen ? 'rotate-180' : ''}`} />
+                </button>
+              </div>
+              {notificationsOpen && <div id="client-notifications-list" className="space-y-2">
+                {notificaciones.map((notification) => {
+                  const expanded = expandedNotificationId === notification.id;
+                  return (
+                    <div key={notification.id} className={`rounded-xl border transition-colors ${
+                      notification.leido ? 'border-white/5 bg-black/10' : 'border-primary/25 bg-primary/10'
+                    }`}>
+                      <button
+                        type="button"
+                        className="w-full text-left p-3 flex items-start gap-3"
+                        onClick={() => {
+                          setExpandedNotificationId(expanded ? null : notification.id);
+                          markNotificationRead(notification);
+                        }}
+                        aria-expanded={expanded}
+                      >
+                        <span className={`mt-1 h-2 w-2 rounded-full flex-shrink-0 ${notification.leido ? 'bg-white/20' : 'bg-primary'}`} />
+                        <span className="min-w-0 flex-1">
+                          <span className="flex items-center justify-between gap-2">
+                            <span className="text-sm font-semibold text-white truncate">{notification.asunto}</span>
+                            <ChevronDown className={`w-4 h-4 flex-shrink-0 text-primary transition-transform ${expanded ? 'rotate-180' : ''}`} />
+                          </span>
+                          <span className="block text-[10px] text-white/40 mt-1">
+                            {new Date(notification.enviado_en).toLocaleString('es-CO')}
+                          </span>
+                        </span>
+                      </button>
+                      {expanded && (
+                        <div className="px-8 pb-4 text-sm leading-relaxed text-white/75 whitespace-pre-wrap">
+                          {notification.mensaje}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>}
+            </section>
+          )}
 
           {loading ? (
             <div className="flex items-center justify-center py-24">
@@ -280,6 +522,37 @@ const MisReservas = () => {
                       <span className="text-[10px] font-bold uppercase tracking-widest text-primary">Total Estimado</span>
                       <span className="font-display font-black text-primary">${totalMonto(selected).toLocaleString()} COP</span>
                     </div>
+                    <div className={`mt-4 rounded-xl border p-4 ${
+                      [5, 6, 8].includes(selected.status_id)
+                        ? 'border-emerald-500/20 bg-emerald-500/5'
+                        : 'border-white/10 bg-white/[.03]'
+                    }`}>
+                        <div className="mb-3 flex items-center gap-2">
+                          <CreditCard className={`h-4 w-4 ${[5, 6, 8].includes(selected.status_id) ? 'text-emerald-300' : 'text-white/40'}`} />
+                          <span className={`text-[10px] font-bold uppercase tracking-widest ${[5, 6, 8].includes(selected.status_id) ? 'text-emerald-300' : 'text-white/50'}`}>Pago de la reserva</span>
+                        </div>
+                        <div className="mb-3 flex justify-between text-xs text-white/60">
+                          <span>Pagado</span>
+                          <span className="font-semibold text-white">
+                            ${pagos.filter((p) => p.estado === 'APPROVED').reduce((sum, p) => sum + Number(p.monto), 0).toLocaleString()} COP
+                          </span>
+                        </div>
+                        {[5, 6, 8].includes(selected.status_id) ? (
+                          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                            <button type="button" onClick={() => iniciarPago('ANTICIPO')} disabled={!!paymentLoading} className="rounded-lg border border-primary/30 bg-primary/10 px-3 py-2 text-xs font-semibold text-primary disabled:opacity-50">
+                            {paymentLoading === 'ANTICIPO' ? 'Preparando...' : 'Pagar anticipo (50%)'}
+                            </button>
+                            <button type="button" onClick={() => iniciarPago('TOTAL')} disabled={!!paymentLoading} className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-300 disabled:opacity-50">
+                            {paymentLoading === 'TOTAL' ? 'Preparando...' : 'Pagar totalidad'}
+                            </button>
+                          </div>
+                        ) : (
+                          <p className="rounded-lg border border-amber-400/15 bg-amber-400/5 px-3 py-2 text-xs text-amber-200/80">
+                            Los pagos estarán disponibles cuando el administrador confirme tu reserva.
+                          </p>
+                        )}
+                        <p className="mt-2 text-[10px] text-white/40">Pago seguro con Wompi.</p>
+                      </div>
                   </div>
                 </div>
               )}
@@ -290,18 +563,29 @@ const MisReservas = () => {
                   <div className="text-[10px] text-white/30 uppercase tracking-widest mb-3">Documentos</div>
                   <div className="space-y-2">
                     {documentos.map((doc: any, i: number) => (
-                      <a
+                      <button
                         key={i}
-                        href={`${BACKEND_HOST}${doc.url_pdf}`}
-                        target="_blank" rel="noreferrer"
-                        className="flex items-center justify-between p-3 bg-white/5 rounded-xl hover:bg-white/10 transition-all group"
+                        type="button"
+                        onClick={() => handleDownloadDocument(doc)}
+                        className={`pdf-download-button ${downloadingDocumentId === doc.id ? 'is-downloading' : ''}`}
+                        aria-busy={downloadingDocumentId === doc.id}
                       >
-                        <div className="flex items-center gap-3">
-                          <FileText className="w-4 h-4 text-primary" />
-                          <span className="text-sm capitalize">{doc.tipo.replace('_', ' ')}</span>
-                        </div>
-                        <Download className="w-4 h-4 text-white/30 group-hover:text-primary transition-colors" />
-                      </a>
+                        <span className="pdf-download-circle" aria-hidden="true">
+                          {downloadingDocumentId === doc.id ? (
+                            <Loader2 className="pdf-download-icon animate-spin" />
+                          ) : (
+                            <Download className="pdf-download-icon" />
+                          )}
+                        </span>
+                        <span className="pdf-download-copy">
+                          <span className="pdf-download-title">
+                            {downloadingDocumentId === doc.id ? 'Descargando...' : 'Descargar'}
+                          </span>
+                          <span className="pdf-download-subtitle capitalize">
+                            {doc.tipo.replace('_', ' ')} · PDF
+                          </span>
+                        </span>
+                      </button>
                     ))}
                   </div>
                 </div>

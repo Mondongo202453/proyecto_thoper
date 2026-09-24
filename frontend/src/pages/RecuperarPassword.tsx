@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Flame, Mail, Lock, KeyRound, Loader2, ArrowLeft, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Mail, Lock, KeyRound, Loader2, ArrowLeft, CheckCircle2, AlertCircle } from 'lucide-react';
 import api from '../api/client';
 
 const RecuperarPassword = () => {
@@ -66,8 +66,12 @@ const RecuperarPassword = () => {
     <div className="min-h-screen flex items-center justify-center px-6 pt-20">
       <div className="glass-card w-full max-w-md p-10 bg-surface/30 animate-fade-in-scale">
         <div className="flex flex-col items-center mb-10">
-          <div className="bg-primary/10 border border-primary/20 p-3 rounded-2xl mb-4">
-            <KeyRound className="w-8 h-8 text-primary" />
+          <div className="w-44 sm:w-52 mb-5">
+            <img
+              src="/img/logo-topher.jpg"
+              alt="Topher Producciones"
+              className="block w-full h-auto object-contain"
+            />
           </div>
           <h2 className="text-3xl font-display font-black uppercase tracking-tight">
             {step === 'done' ? '¡Listo!' : 'Recuperar Contraseña'}

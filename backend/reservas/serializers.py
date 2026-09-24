@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from .models import Reserva, ReservationService
 from servicios.models import Tarifa
-from usuarios.models import Status
+from usuarios.models import Status, Usuario
 
 class ReservationServiceSerializer(serializers.ModelSerializer):
     servicio_nombre = serializers.ReadOnlyField(source='servicio.nombre')
@@ -15,6 +15,7 @@ class ReservaSerializer(serializers.ModelSerializer):
     servicios_contratados = ReservationServiceSerializer(many=True, required=False)
     # Make status optional on input; default will be applied in create() if not provided
     status = serializers.PrimaryKeyRelatedField(queryset=Status.objects.all(), required=False, allow_null=True)
+    status_id = serializers.IntegerField(read_only=True)
     status_nombre = serializers.ReadOnlyField(source='status.nombre')
     usuario_nombre = serializers.ReadOnlyField(source='usuario.nombre_completo')
 
@@ -68,6 +69,30 @@ class ReservaSerializer(serializers.ModelSerializer):
                 precio_calculado=precio,
                 notas=item.get('notas', '')
             )
+
+        # Avisar a todos los administradores que hay una nueva solicitud.
+        # Se registra fuera del bloque de correo/PDF para que un fallo de
+        # comunicación no impida que el aviso aparezca en el dashboard.
+        try:
+            from comunicacion.models import Notificacion
+
+            administradores = Usuario.objects.filter(role_id=1)
+            Notificacion.objects.bulk_create([
+                Notificacion(
+                    usuario=administrador,
+                    reserva=reserva,
+                    tipo='sistema',
+                    asunto=f'Nueva solicitud de reserva — {reserva.numero_solicitud}',
+                    mensaje=(
+                        f'{reserva.usuario.nombre_completo} envió una solicitud '
+                        f'para el evento "{reserva.nombre_evento}". '
+                        'Revisa la reserva para continuar con la gestión.'
+                    ),
+                )
+                for administrador in administradores
+            ])
+        except Exception as exc:
+            print(f"[WARN] No se pudo crear la notificación para administradores: {exc}")
         
         # RF25: Generar automáticamente cotización en PDF
         try:

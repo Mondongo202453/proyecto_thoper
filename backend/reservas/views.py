@@ -123,7 +123,13 @@ class ReservaViewSet(viewsets.ModelViewSet):
         if nuevo_status_id is None:
             return Response({'detail': 'status_id es requerido.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        nuevo_status_id = int(nuevo_status_id)
+        try:
+            nuevo_status_id = int(nuevo_status_id)
+        except (TypeError, ValueError):
+            return Response(
+                {'detail': 'status_id debe ser un número entero válido.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
         status_actual = reserva.status_id
         transiciones = TRANSICIONES_VALIDAS.get(status_actual, [])
 
@@ -188,6 +194,14 @@ class ReservaViewSet(viewsets.ModelViewSet):
                 f"Hola {reserva.usuario.nombre_completo},\n\n"
                 f"El servicio para tu evento '{reserva.nombre_evento}' ha sido COMPLETADO exitosamente.\n\n"
                 f"Adjuntamos el comprobante de servicio prestado.\n\nEquipo Topher Producciones."
+            )
+        elif nuevo_status_id == 6:  # En proceso
+            asunto = f"Reserva en proceso — {reserva.numero_solicitud}"
+            cuerpo = (
+                f"Hola {reserva.usuario.nombre_completo},\n\n"
+                f"Tu reserva para el evento '{reserva.nombre_evento}' se encuentra EN PROCESO.\n"
+                f"Nuestro equipo ya está trabajando en la preparación de tu servicio.\n\n"
+                f"Equipo Topher Producciones."
             )
         elif nuevo_status_id == 7:  # Cancelada
             asunto = f"Reserva Cancelada — {reserva.numero_solicitud}"
@@ -284,7 +298,16 @@ class ReservaViewSet(viewsets.ModelViewSet):
         from documentos.models import Cotizacion
         from documentos.serializers import CotizacionSerializer
         docs = Cotizacion.objects.filter(reserva=reserva).order_by('-generado_en')
-        return Response([{'tipo': d.tipo, 'url_pdf': d.url_pdf, 'generado_en': d.generado_en} for d in docs])
+        return Response([
+            {
+                'id': d.id,
+                'tipo': d.tipo,
+                'url_pdf': d.url_pdf,
+                'download_url': f'/api/cotizaciones/{d.id}/download/',
+                'generado_en': d.generado_en,
+            }
+            for d in docs
+        ])
 
 
 class ReservationServiceViewSet(viewsets.ModelViewSet):

@@ -54,6 +54,7 @@ INSTALLED_APPS = [
     'portafolio',
     'documentos',
     'comunicacion',
+    'pagos',
 ]
 
 AUTH_USER_MODEL = 'usuarios.Usuario'

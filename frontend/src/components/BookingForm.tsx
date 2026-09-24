@@ -3,12 +3,12 @@ import { Calendar, MapPin, Users, Info, Send, CheckCircle2, Loader2, Plus, Trash
 import api, { BACKEND_HOST } from '../api/client';
 import axios from 'axios';
 import { Servicio } from './Services';
+import TopherSelect from './TopherSelect';
 
 const BookingForm = () => {
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
-  const [cotizacionUrl, setCotizacionUrl] = useState<string | null>(null);
   const [serviciosDisponibles, setServiciosDisponibles] = useState<Servicio[]>([]);
   const [error, setError] = useState('');
   
@@ -107,23 +107,6 @@ const BookingForm = () => {
         const response = await api.post('/reservas/', payload, { headers: { Authorization: tokenHeader } });
         const reserva = response.data;
         setSubmitted(true);
-        // Try to fetch the generated cotización for this reserva
-        try {
-          // Prefer querying the cotizaciones endpoint for this reserva
-          const cotResp = await api.get('/cotizaciones/', { headers: { Authorization: tokenHeader }, params: { reserva: reserva.id } });
-          const cotizaciones = Array.isArray(cotResp.data) ? cotResp.data : cotResp.data.results || [];
-          if (cotizaciones.length > 0) {
-            const latest = cotizaciones[0];
-            // url_pdf may be relative ("/media/...") — build full URL
-            const pdfPath = latest.url_pdf || latest.url || null;
-            if (pdfPath) {
-              const full = pdfPath.startsWith('http') ? pdfPath : `${BACKEND_HOST}${pdfPath}`;
-              setCotizacionUrl(full);
-            }
-          }
-        } catch (fetchCotErr) {
-          console.warn('No se pudo obtener la cotización inmediatamente:', fetchCotErr);
-        }
       } catch (postErr: any) {
         console.error('Initial reservation POST error:', postErr);
         // If unauthorized, attempt a manual refresh using refresh_token and retry once
@@ -202,39 +185,39 @@ const BookingForm = () => {
 
   if (submitted) {
     return (
-      <div className="max-w-2xl mx-auto py-20 text-center">
-        <div className="flex justify-center mb-6 animate-fade-in-scale">
-          <CheckCircle2 className="w-20 h-20 text-primary" />
-        </div>
-        <h2 className="text-3xl font-bold mb-4">¡Solicitud Enviada!</h2>
-        <p className="text-white/60 mb-8">
-          Hemos recibido tu solicitud. Un asesor se pondrá en contacto contigo pronto y hemos enviado la cotización a tu correo.
-        </p>
-        <div className="flex flex-col items-center gap-4">
-          {cotizacionUrl ? (
-            <a href={cotizacionUrl} target="_blank" rel="noreferrer" className="btn-primary inline-flex items-center gap-2">
-              Descargar Cotización
-            </a>
-          ) : (
-            <p className="text-sm text-white/50">La cotización se está generando. Si no aparece el enlace automáticamente, revisa tu correo o vuelve a intentar en unos segundos.</p>
-          )}
-
-          <button onClick={() => window.location.reload()} className="btn-primary/outline mt-4">Nueva Solicitud</button>
+      <div className="booking-success-card">
+        <div className="booking-success-content">
+          <div className="booking-success-icon animate-fade-in-scale">
+            <CheckCircle2 className="w-16 h-16 text-primary" />
+          </div>
+          <div className="booking-success-copy">
+            <span className="text-primary text-[10px] font-bold uppercase tracking-[0.35em]">Topher Producciones</span>
+            <h2 className="text-3xl sm:text-4xl font-display font-black uppercase mt-2 mb-4">¡Solicitud Enviada!</h2>
+            <p className="text-white/60 max-w-xl mx-auto">
+              Hemos recibido tu solicitud. Un asesor se pondrá en contacto contigo pronto y hemos enviado la cotización a tu correo.
+            </p>
+          </div>
+          <div className="booking-success-actions">
+            <p className="booking-success-note">
+              La cotización fue generada y enviada a tu correo. También podrás consultarla desde <strong>Mis Reservas</strong>.
+            </p>
+            <button onClick={() => window.location.reload()} className="btn-outline mt-1">Nueva Solicitud</button>
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <section className="min-h-screen py-24 px-6 max-w-4xl mx-auto">
-      <div className="text-center mb-16">
-        <h2 className="text-4xl font-display font-black tracking-tight mb-4 uppercase">
+    <section className="min-h-screen py-16 sm:py-24 px-4 sm:px-6 max-w-4xl mx-auto">
+      <div className="text-center mb-10 sm:mb-16">
+        <h2 className="text-3xl sm:text-4xl font-display font-black tracking-tight mb-4 uppercase">
           Solicita tu <span className="text-primary">Evento</span>
         </h2>
         <p className="text-white/50">Completa los detalles para recibir una cotización automática.</p>
       </div>
 
-      <form onSubmit={handleSubmit} className="glass-card bg-surface/20 p-8 md:p-12">
+      <form onSubmit={handleSubmit} className="glass-card bg-surface/20 p-5 sm:p-8 md:p-12">
         {error && (
           <div className="mb-6 p-4 bg-red-500/10 border border-red-500/30 rounded-xl">
             <p className="text-red-300 text-sm font-semibold">{error}</p>
@@ -245,75 +228,90 @@ const BookingForm = () => {
           {/* Datos Básicos */}
           <div className="space-y-6">
             <div>
-              <label className="block text-xs font-bold uppercase tracking-widest text-white/40 mb-2">Nombre del Evento</label>
-              <input 
+              <div className="form-field-group">
+              <input
                 type="text" required
-                className="w-full bg-background border border-white/10 rounded-xl px-4 py-3 focus:border-primary outline-none transition-colors"
-                placeholder="Ej: Boda de Juan y Maria"
+                className="form-field"
+                placeholder=" "
                 value={formData.nombre_evento}
                 onChange={e => setFormData({...formData, nombre_evento: e.target.value})}
               />
+              <label className="form-field-label">Nombre del Evento</label>
+              </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-bold uppercase tracking-widest text-white/40 mb-2">Fecha</label>
+                <div className="form-field-group">
                 <input 
                   type="date" required
-                  className="w-full bg-background border border-white/10 rounded-xl px-4 py-3 focus:border-primary outline-none transition-colors"
+                  className="form-field form-field-date"
                   value={formData.fecha_evento}
                   onChange={e => setFormData({...formData, fecha_evento: e.target.value})}
                 />
+                <label className="form-field-label form-field-label-static">Fecha</label>
+                </div>
               </div>
               <div>
-                <label className="block text-xs font-bold uppercase tracking-widest text-white/40 mb-2">Hora</label>
+                <div className="form-field-group">
                 <input 
                   type="time" required
-                  className="w-full bg-background border border-white/10 rounded-xl px-4 py-3 focus:border-primary outline-none transition-colors"
+                  className="form-field form-field-date"
                   value={formData.hora_evento}
                   onChange={e => setFormData({...formData, hora_evento: e.target.value})}
                 />
+                <label className="form-field-label form-field-label-static">Hora</label>
+                </div>
               </div>
             </div>
             <div>
-              <label className="block text-xs font-bold uppercase tracking-widest text-white/40 mb-2">Lugar / Dirección</label>
-              <input 
+              <div className="form-field-group">
+              <input
                 type="text" required
-                className="w-full bg-background border border-white/10 rounded-xl px-4 py-3 focus:border-primary outline-none transition-colors"
-                placeholder="Hacienda, Club, Auditorio..."
+                className="form-field"
+                placeholder=" "
                 value={formData.lugar}
                 onChange={e => setFormData({...formData, lugar: e.target.value})}
               />
+              <label className="form-field-label">Lugar / Dirección</label>
+              </div>
             </div>
           </div>
 
           <div className="space-y-6">
             <div>
-              <label className="block text-xs font-bold uppercase tracking-widest text-white/40 mb-2">Municipio</label>
-              <input 
+              <div className="form-field-group">
+              <input
                 type="text" required
-                className="w-full bg-background border border-white/10 rounded-xl px-4 py-3 focus:border-primary outline-none transition-colors"
-                placeholder="Medellín, Envigado..."
+                className="form-field"
+                placeholder=" "
                 value={formData.municipio}
                 onChange={e => setFormData({...formData, municipio: e.target.value})}
               />
+              <label className="form-field-label">Municipio</label>
+              </div>
             </div>
             <div>
-              <label className="block text-xs font-bold uppercase tracking-widest text-white/40 mb-2">Número de Asistentes</label>
-              <input 
+              <div className="form-field-group">
+              <input
                 type="number" required
-                className="w-full bg-background border border-white/10 rounded-xl px-4 py-3 focus:border-primary outline-none transition-colors"
+                className="form-field"
+                placeholder=" "
                 value={formData.asistentes}
                 onChange={e => setFormData({...formData, asistentes: parseInt(e.target.value)})}
               />
+              <label className="form-field-label">Número de Asistentes</label>
+              </div>
             </div>
             <div>
-              <label className="block text-xs font-bold uppercase tracking-widest text-white/40 mb-2">Observaciones</label>
-              <textarea 
-                className="w-full bg-background border border-white/10 rounded-xl px-4 py-3 focus:border-primary outline-none transition-colors h-[108px]"
-                placeholder="Detalles adicionales..."
+              <div className="form-field-group form-field-group-textarea">
+              <textarea
+                className="form-field form-field-textarea"
+                placeholder=" "
                 value={formData.observaciones}
                 onChange={e => setFormData({...formData, observaciones: e.target.value})}
               />
+              <label className="form-field-label">Observaciones</label>
+              </div>
             </div>
           </div>
         </div>
@@ -353,47 +351,56 @@ const BookingForm = () => {
                 )}
                 
                 <div className="md:col-span-5">
-                  <label className="block text-[10px] font-bold uppercase tracking-widest text-white/30 mb-2">Servicio</label>
-                  <select 
+                  <div className="form-field-group form-field-group-compact">
+                  <TopherSelect
                     required
-                    className="w-full bg-background border border-white/10 rounded-lg px-3 py-2 text-sm outline-none focus:border-primary"
                     value={item.servicio}
-                    onChange={e => updateService(idx, 'servicio', e.target.value)}
-                  >
-                    <option value="">Seleccionar...</option>
-                    {serviciosDisponibles.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
-                  </select>
+                    onChange={value => updateService(idx, 'servicio', value)}
+                    options={[
+                      { value: '', label: 'Seleccionar...' },
+                      ...serviciosDisponibles.map(s => ({ value: String(s.id), label: s.nombre })),
+                    ]}
+                  />
+                  <label className="form-field-label form-field-label-static">Servicio</label>
+                  </div>
                 </div>
                 <div className="md:col-span-2">
-                  <label className="block text-[10px] font-bold uppercase tracking-widest text-white/30 mb-2">Cant.</label>
-                  <input 
+                  <div className="form-field-group form-field-group-compact">
+                  <input
                     type="number" required
-                    className="w-full bg-background border border-white/10 rounded-lg px-3 py-2 text-sm outline-none focus:border-primary"
+                    className="form-field"
+                    placeholder=" "
                     value={item.cantidad}
                     onChange={e => updateService(idx, 'cantidad', e.target.value)}
                   />
+                  <label className="form-field-label form-field-label-static">Cant.</label>
+                  </div>
                 </div>
                 <div className="md:col-span-2">
-                  <label className="block text-[10px] font-bold uppercase tracking-widest text-white/30 mb-2">Horas</label>
-                  <input 
+                  <div className="form-field-group form-field-group-compact">
+                  <input
                     type="number" required step="0.5"
-                    className="w-full bg-background border border-white/10 rounded-lg px-3 py-2 text-sm outline-none focus:border-primary"
+                    className="form-field"
+                    placeholder=" "
                     value={item.duracion_horas}
                     onChange={e => updateService(idx, 'duracion_horas', e.target.value)}
                   />
+                  <label className="form-field-label form-field-label-static">Horas</label>
+                  </div>
                 </div>
                 <div className="md:col-span-2">
-                  <label className="block text-[10px] font-bold uppercase tracking-widest text-white/30 mb-2">Tarifa</label>
-                  <select 
+                  <div className="form-field-group form-field-group-compact">
+                  <TopherSelect
                     required
-                    className="w-full bg-background border border-white/10 rounded-lg px-3 py-2 text-sm outline-none focus:border-primary"
-                    value={item.tarifa}
-                    onChange={e => updateService(idx, 'tarifa', e.target.value)}
-                  >
-                    {serviciosDisponibles.find(s => s.id === parseInt(item.servicio))?.tarifas.map(t => (
-                      <option key={t.id} value={t.id}>{t.unidad} - ${parseFloat(t.precio_unitario).toLocaleString()}</option>
-                    ))}
-                  </select>
+                    value={String(item.tarifa)}
+                    onChange={value => updateService(idx, 'tarifa', value)}
+                    options={serviciosDisponibles.find(s => s.id === parseInt(item.servicio))?.tarifas.map(t => ({
+                      value: String(t.id),
+                      label: `${t.unidad} - $${parseFloat(t.precio_unitario).toLocaleString()}`,
+                    })) || []}
+                  />
+                  <label className="form-field-label form-field-label-static">Tarifa</label>
+                  </div>
                 </div>
                 <div className="md:col-span-1 flex justify-center pb-2">
                   <button type="button" onClick={() => removeService(idx)} className="text-white/20 hover:text-red-500 transition-colors">

@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Camera, X, ChevronRight, Loader2 } from 'lucide-react';
 import api, { BACKEND_HOST } from '../api/client';
 
@@ -79,9 +80,20 @@ const localEventos: Evento[] = [
 const Portfolio = () => {
   const [eventos, setEventos] = useState<Evento[]>(localEventos);
   const [loading, setLoading] = useState(false);
-  const [selectedMedia, setSelectedMedia] = useState<string | null>(null);
+  const [selectedMedia, setSelectedMedia] = useState<Media | null>(null);
   const [filter, setFilter] = useState('Todos');
   const [columns, setColumns] = useState<number>(3);
+
+  useEffect(() => {
+    if (!selectedMedia) return;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [selectedMedia]);
 
   // Responsive column detection to fill grid rows when necessary
   useEffect(() => {
@@ -100,7 +112,16 @@ const Portfolio = () => {
     setLoading(true);
     api.get('/portafolio/')
       .then(res => {
-        const data = Array.isArray(res.data) ? res.data : res.data.results || [];
+        const data = (Array.isArray(res.data) ? res.data : res.data.results || []).map((evento: any) => ({
+          ...evento,
+          categoria: evento.categoria || evento.tipo_evento || 'Eventos',
+          multimedia: (evento.multimedia || [])
+            .map((media: any) => ({
+              ...media,
+              url_media: media.url_media || media.url_archivo || media.url || '',
+            }))
+            .filter((media: Media) => media.url_media),
+        }));
         if (data.length > 0) {
           const existingIds = new Set(localEventos.map(evento => evento.id));
           const merged = [
@@ -116,10 +137,11 @@ const Portfolio = () => {
       .finally(() => setLoading(false));
   }, []);
 
-  const resolveMediaUrl = (mediaUrl: string) => {
-    if (mediaUrl.startsWith('http')) return mediaUrl;
+  const resolveMediaUrl = (mediaUrl?: string | null) => {
+    if (!mediaUrl || typeof mediaUrl !== 'string') return '/img/imagen1.jpg';
+    if (/^(https?:|data:|blob:)/i.test(mediaUrl)) return mediaUrl;
     if (mediaUrl.startsWith('/img/') || mediaUrl.startsWith('img/')) return mediaUrl;
-    return `${BACKEND_HOST}${mediaUrl}`;
+    return `${BACKEND_HOST}${mediaUrl.startsWith('/') ? mediaUrl : `/${mediaUrl}`}`;
   };
 
   const categories = ['Todos', ...new Set(eventos.map(e => e.categoria))];
@@ -166,15 +188,25 @@ const Portfolio = () => {
           <div
             key={evento.id}
             className="glass-card group relative cursor-pointer overflow-hidden transition-all duration-300 hover:-translate-y-2 animate-fade-in-scale flex flex-col h-full"
-            onClick={() => setSelectedMedia(evento.multimedia[0]?.url_media)}
+            onClick={() => evento.multimedia[0]?.url_media && setSelectedMedia(evento.multimedia[0])}
           >
               <div className="aspect-[4/5] overflow-hidden flex-shrink-0">
-                {evento.multimedia?.[0] ? (
-                  <img 
-                    src={resolveMediaUrl(evento.multimedia[0].url_media)} 
-                    alt={evento.nombre}
-                    className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-transform duration-700 scale-100 group-hover:scale-105"
-                  />
+                {evento.multimedia?.[0]?.url_media ? (
+                  evento.multimedia[0].tipo === 'video' ? (
+                    <video
+                      src={resolveMediaUrl(evento.multimedia[0].url_media)}
+                      muted
+                      playsInline
+                      preload="metadata"
+                      className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-transform duration-700 scale-100 group-hover:scale-105"
+                    />
+                  ) : (
+                    <img 
+                      src={resolveMediaUrl(evento.multimedia[0].url_media)} 
+                      alt={evento.nombre}
+                      className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-transform duration-700 scale-100 group-hover:scale-105"
+                    />
+                  )
                 ) : (
                   <div className="w-full h-full bg-surface flex items-center justify-center">
                     <Camera className="w-12 h-12 text-white/5" />
@@ -219,19 +251,40 @@ const Portfolio = () => {
       </div>
 
       {/* Lightbox */}
-      {selectedMedia && (
+      {selectedMedia && createPortal(
         <div
-          className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-xl flex items-center justify-center p-6 animate-fade-in cursor-zoom-out"
-          onClick={() => setSelectedMedia(null)}
+          className="fixed inset-0 z-[100] h-[100dvh] w-full overflow-y-auto overscroll-contain bg-black/95 backdrop-blur-xl flex items-center justify-center p-3 sm:p-6 animate-fade-in cursor-zoom-out"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setSelectedMedia(null);
+          }}
         >
-          <button className="absolute top-10 right-10 p-4 bg-white/5 hover:bg-white/10 rounded-full text-white transition-colors">
+          <div role="dialog" aria-modal="true" aria-label="Vista ampliada del portafolio" className="relative flex min-h-0 max-w-full items-center justify-center">
+          <button
+            type="button"
+            aria-label="Cerrar imagen ampliada"
+            onClick={() => setSelectedMedia(null)}
+            className="absolute right-2 top-2 z-10 rounded-full bg-black/60 p-3 text-white transition-colors hover:bg-white/10 sm:-right-4 sm:-top-4"
+          >
             <X className="w-8 h-8" />
           </button>
-          <img 
-            src={selectedMedia ? resolveMediaUrl(selectedMedia) : ''} 
-            className="max-w-full max-h-[85vh] object-contain rounded-2xl shadow-2xl shadow-primary/20 animate-fade-in-scale"
-          />
-        </div>
+          {selectedMedia.tipo === 'video' ? (
+            <video
+              src={resolveMediaUrl(selectedMedia.url_media)}
+              controls
+              autoPlay
+              playsInline
+              className="max-h-[calc(100dvh-2rem)] max-w-full rounded-2xl shadow-2xl shadow-primary/20 animate-fade-in-scale sm:max-h-[90vh]"
+            />
+          ) : (
+            <img 
+              src={resolveMediaUrl(selectedMedia.url_media)}
+              alt="Imagen ampliada del portafolio"
+              className="max-h-[calc(100dvh-2rem)] max-w-full object-contain rounded-2xl shadow-2xl shadow-primary/20 animate-fade-in-scale sm:max-h-[90vh]"
+            />
+          )}
+          </div>
+        </div>,
+        document.body
       )}
     </section>
   );

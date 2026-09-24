@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Flame, Mail, MessageSquare, User, Send, CheckCircle2, Loader2, Phone, MapPin } from 'lucide-react';
 import api from '../api/client';
+import TopherSelect from '../components/TopherSelect';
 
 const Contacto = () => {
   const userRaw = localStorage.getItem('user');
@@ -179,21 +180,19 @@ const Contacto = () => {
                   <label className="block text-[10px] font-bold uppercase tracking-widest text-white/30 mb-2">
                     Asunto
                   </label>
-                  <select
-                    id="contact-subject"
-                    name="asunto"
+                  <TopherSelect
                     required
-                    className="w-full bg-background border border-white/10 rounded-xl px-4 py-3.5 focus:border-primary outline-none transition-colors text-sm"
                     value={formData.asunto}
-                    onChange={handleChange}
-                  >
-                    <option value="">Selecciona un asunto...</option>
-                    <option value="Cotización de servicios">Cotización de servicios</option>
-                    <option value="Consulta sobre reserva">Consulta sobre reserva existente</option>
-                    <option value="Información general">Información general</option>
-                    <option value="Soporte técnico">Soporte técnico</option>
-                    <option value="Otro">Otro</option>
-                  </select>
+                    onChange={(value) => setFormData((current) => ({ ...current, asunto: value }))}
+                    options={[
+                      { value: '', label: 'Selecciona un asunto...' },
+                      { value: 'Cotización de servicios', label: 'Cotización de servicios' },
+                      { value: 'Consulta sobre reserva', label: 'Consulta sobre reserva existente' },
+                      { value: 'Información general', label: 'Información general' },
+                      { value: 'Soporte técnico', label: 'Soporte técnico' },
+                      { value: 'Otro', label: 'Otro' },
+                    ]}
+                  />
                 </div>
 
                 <div>

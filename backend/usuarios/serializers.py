@@ -21,6 +21,9 @@ class StatusSerializer(serializers.ModelSerializer):
 class UsuarioSerializer(serializers.ModelSerializer):
     role_nombre = serializers.ReadOnlyField(source='role.nombre')
     status_nombre = serializers.ReadOnlyField(source='status.nombre')
+    # El modelo expone el campo Django como `last_login`, aunque la columna
+    # existente en MySQL se llama `ultimo_login`.
+    ultimo_login = serializers.ReadOnlyField(source='last_login')
 
     class Meta:
         model = Usuario

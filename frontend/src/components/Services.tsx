@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import { Flame, ShoppingCart, Loader2, X, Clock, Package, ChevronRight } from 'lucide-react';
 import api, { BACKEND_HOST } from '../api/client';
@@ -9,7 +10,7 @@ export interface Servicio {
   nombre: string;
   descripcion: string;
   categoria_nombre: string;
-  imagenes: { url_imagen: string; es_principal: boolean }[];
+  imagenes: { url_imagen: string; es_principal: boolean; tipo?: 'image' | 'video' }[];
   tarifas: { id: number; unidad: string; precio_unitario: string }[];
 }
 
@@ -88,6 +89,17 @@ const Services = () => {
   const [selectedService, setSelectedService] = useState<Servicio | null>(null);
   const [columns, setColumns] = useState<number>(3);
 
+  useEffect(() => {
+    if (!selectedService) return;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [selectedService]);
+
   // Detect responsive columns (matches Tailwind breakpoints used in this project)
   useEffect(() => {
     const calc = () => {
@@ -108,6 +120,9 @@ const Services = () => {
     return `${BACKEND_HOST}${url}`;
   };
 
+  const isVideoMedia = (media?: { url_imagen?: string; tipo?: string }) =>
+    media?.tipo === 'video' || /\.(mp4|webm|mov|m4v)(\?.*)?$/i.test(media?.url_imagen || '');
+
   // Explicit mapping of service id -> image file in frontend/public/img
   const serviceImageMap: Record<number, string> = {
     1001: '/img/gemini-1.png', // Máquina de Humo Profesional
@@ -124,7 +139,13 @@ const Services = () => {
   useEffect(() => {
     axios.get(`${BACKEND_HOST}/api/servicios/`)
       .then(res => {
-        const data = Array.isArray(res.data) ? res.data : res.data.results || [];
+        const data = (Array.isArray(res.data) ? res.data : res.data.results || []).map((servicio: Servicio) => ({
+          ...servicio,
+          imagenes: (servicio.imagenes || []).map((media) => ({
+            ...media,
+            tipo: isVideoMedia(media) ? 'video' as const : 'image' as const,
+          })),
+        }));
         if (data.length > 0) {
           setServicios(data);
         }
@@ -156,12 +177,12 @@ const Services = () => {
   );
 
   return (
-    <section className="min-h-screen py-24 px-6 max-w-7xl mx-auto overflow-hidden">
-      <div className="mb-16">
+    <section className="min-h-screen py-16 sm:py-24 px-4 sm:px-6 max-w-7xl mx-auto overflow-hidden">
+      <div className="mb-10 sm:mb-16">
         <span className="text-primary font-bold text-xs uppercase tracking-[0.4em] mb-4 block animate-slide-up">
           Experiencias Únicas
         </span>
-        <h2 className="text-5xl font-display font-black tracking-tight mb-4 uppercase">
+        <h2 className="text-3xl sm:text-5xl font-display font-black tracking-tight mb-4 uppercase">
           Nuestros <span className="text-gradient">Servicios</span>
         </h2>
         <p className="max-w-2xl text-white/60 leading-relaxed">
@@ -169,15 +190,16 @@ const Services = () => {
         </p>
         <div className="flex flex-wrap items-center gap-3 mt-6">
           <div className="h-1.5 w-24 bg-primary rounded-full" />
-          <span className="text-[10px] uppercase tracking-[0.35em] text-white/30">ejecución impecable • montaje profesional • impacto visual</span>
+          <span className="text-[9px] sm:text-[10px] uppercase tracking-[0.2em] sm:tracking-[0.35em] text-white/30">ejecución impecable • montaje profesional • impacto visual</span>
         </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 items-stretch animate-slide-up">
         {servicios.map((servicio, idx) => (
           (() => {
-            const imageUrl = servicio.imagenes?.[0]?.url_imagen
-              ? resolveImageUrl(servicio.imagenes![0].url_imagen)
+            const primaryMedia = servicio.imagenes?.[0];
+            const imageUrl = primaryMedia?.url_imagen
+              ? resolveImageUrl(primaryMedia.url_imagen)
               : (serviceImageMap[servicio.id] || defaultImages[idx % defaultImages.length]);
             return (
               <div
@@ -186,11 +208,21 @@ const Services = () => {
                 onClick={() => setSelectedService(servicio)}
               >
                 <div className="relative aspect-[16/10] rounded-[1.25rem] overflow-hidden mb-6 bg-surface/50 border border-white/5 flex-shrink-0">
-                  <img 
-                    src={imageUrl} 
-                    alt={servicio.nombre}
-                    className="w-full h-full object-cover transition-transform duration-700 scale-100 group-hover:scale-110"
-                  />
+                  {isVideoMedia(primaryMedia) ? (
+                    <video
+                      src={imageUrl}
+                      muted
+                      playsInline
+                      preload="metadata"
+                      className="w-full h-full object-cover transition-transform duration-700 scale-100 group-hover:scale-110"
+                    />
+                  ) : (
+                    <img 
+                      src={imageUrl} 
+                      alt={servicio.nombre}
+                      className="w-full h-full object-cover transition-transform duration-700 scale-100 group-hover:scale-110"
+                    />
+                  )}
                   <div className="absolute top-4 left-4">
                     <span className="px-3 py-1 rounded-lg bg-black/60 backdrop-blur-md border border-white/10 text-[10px] font-bold uppercase tracking-widest text-primary">
                       {servicio.categoria_nombre}
@@ -210,9 +242,18 @@ const Services = () => {
                       ${parseFloat(servicio.tarifas[0]?.precio_unitario || '0').toLocaleString()}
                     </span>
                   </div>
-                  <div className="bg-primary/10 group-hover:bg-primary text-primary group-hover:text-white p-3 rounded-2xl transition-all duration-300">
-                    <ChevronRight className="w-6 h-6" />
-                  </div>
+                  <button
+                    type="button"
+                    className="service-card-action"
+                    aria-label={`Ver detalles de ${servicio.nombre}`}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setSelectedService(servicio);
+                    }}
+                  >
+                    <span className="service-card-action-label">Ver detalles</span>
+                    <ChevronRight className="service-card-action-icon" aria-hidden="true" />
+                  </button>
                 </div>
               </div>
             );
@@ -232,9 +273,9 @@ const Services = () => {
                   <span className="text-[10px] text-white/30 block uppercase tracking-widest mb-1">Consulta</span>
                   <span className="text-xl font-display font-black text-white">$s/</span>
                 </div>
-                <div className="bg-primary/10 text-primary p-3 rounded-2xl">
-                  <ChevronRight className="w-6 h-6" />
-                </div>
+                <span className="service-card-action is-static" aria-hidden="true">
+                  <ChevronRight className="service-card-action-icon" />
+                </span>
               </div>
             </div>
           ));
@@ -242,32 +283,40 @@ const Services = () => {
       </div>
 
       {/* Service Detail Modal */}
-      {selectedService && (
+      {selectedService && createPortal(
         <div
-          className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-xl flex items-center justify-center p-4 animate-fade-in"
+          className="fixed inset-0 z-[100] h-[100dvh] w-full overflow-y-auto bg-black/90 backdrop-blur-xl flex items-center justify-center p-3 sm:p-4 animate-fade-in"
           onClick={(e) => {
             if (e.target === e.currentTarget) setSelectedService(null);
           }}
         >
           <div 
-            className="glass-card max-w-5xl w-full bg-surface/80 p-0 overflow-hidden grid grid-cols-1 md:grid-cols-2 md:max-h-[80vh] max-h-[90vh] rounded-[1rem] animate-slide-up"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="service-detail-title"
+            className="glass-card max-w-5xl w-full h-[calc(100dvh-1.5rem)] sm:h-[calc(100dvh-2rem)] md:h-[min(760px,calc(100dvh-2rem))] max-h-none bg-surface/95 p-0 overflow-hidden grid grid-cols-1 grid-rows-[minmax(180px,34vh)_minmax(0,1fr)] md:grid-cols-2 md:grid-rows-1 rounded-[1rem] animate-slide-up"
           >
-              <div className="relative h-64 md:h-full bg-background">
+              <div className="relative min-h-0 bg-background">
                 {(() => {
                   const idx = servicios.findIndex(s => s.id === selectedService.id);
-                  const modalImage = selectedService.imagenes?.[0]?.url_imagen ? resolveImageUrl(selectedService.imagenes![0].url_imagen) : defaultImages[(idx >= 0 ? idx : 0) % defaultImages.length];
-                  return <img src={modalImage} className="w-full h-full object-cover" />;
+                  const modalMedia = selectedService.imagenes?.[0];
+                  const modalImage = modalMedia?.url_imagen ? resolveImageUrl(modalMedia.url_imagen) : defaultImages[(idx >= 0 ? idx : 0) % defaultImages.length];
+                  return isVideoMedia(modalMedia) ? (
+                    <video src={modalImage} controls playsInline className="w-full h-full object-cover" />
+                  ) : (
+                    <img src={modalImage} alt={selectedService.nombre} className="w-full h-full object-cover" />
+                  );
                 })()}
-                <button onClick={() => setSelectedService(null)} className="md:hidden absolute top-4 right-4 bg-black/50 p-2 rounded-full"><X /></button>
+                <button aria-label="Cerrar detalle del servicio" onClick={() => setSelectedService(null)} className="md:hidden absolute top-3 right-3 bg-black/60 p-2 rounded-full"><X /></button>
               </div>
               
-              <div className="p-8 md:p-12 overflow-y-auto">
+              <div className="min-h-0 p-5 sm:p-8 md:p-10 overflow-y-auto overscroll-contain">
                 <div className="flex justify-between items-start mb-8">
                   <div>
                     <span className="text-primary font-bold text-xs uppercase tracking-widest mb-2 block">{selectedService.categoria_nombre}</span>
-                    <h2 className="text-4xl font-display font-black uppercase leading-none">{selectedService.nombre}</h2>
+                    <h2 id="service-detail-title" className="text-3xl sm:text-4xl font-display font-black uppercase leading-none">{selectedService.nombre}</h2>
                   </div>
-                  <button onClick={() => setSelectedService(null)} className="hidden md:block text-white/20 hover:text-white transition-colors"><X className="w-8 h-8" /></button>
+                  <button aria-label="Cerrar detalle del servicio" onClick={() => setSelectedService(null)} className="hidden md:block text-white/20 hover:text-white transition-colors"><X className="w-8 h-8" /></button>
                 </div>
 
                 <p className="text-white/60 mb-10 text-lg leading-relaxed">{selectedService.descripcion}</p>
@@ -298,7 +347,8 @@ const Services = () => {
                 </Link>
               </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </section>
   );

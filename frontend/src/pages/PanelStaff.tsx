@@ -109,24 +109,25 @@ const PanelStaff = () => {
               <div className="text-[9px] text-primary uppercase tracking-widest">Personal Staff</div>
             </div>
           </div>
-          <button onClick={logout} className="flex items-center gap-2 border border-white/10 px-4 py-2 rounded-xl text-xs font-bold text-red-400 hover:bg-red-500/10 transition-all">
-            <LogOut className="w-4 h-4" /> Salir
+          <button onClick={logout} className="logout-button" aria-label="Salir">
+            <span className="logout-icon"><LogOut className="w-4 h-4" /></span>
+            <span className="logout-label">Salir</span>
           </button>
         </div>
       </header>
 
-      <main className="flex-1 pt-28 pb-16 px-6">
+      <main className="flex-1 pt-28 pb-16 px-4 sm:px-6">
         <div className="max-w-4xl mx-auto">
           <div className="mb-10">
             <span className="text-[10px] font-bold uppercase tracking-[0.4em] text-primary">Panel de Personal</span>
-            <h1 className="text-4xl md:text-5xl font-display font-black uppercase tracking-tight mt-2 mb-2">
+            <h1 className="text-3xl sm:text-4xl md:text-5xl font-display font-black uppercase tracking-tight mt-2 mb-2">
               Mis Asignaciones
             </h1>
             <p className="text-white/40">Aquí puedes ver todos los eventos a los que has sido asignado.</p>
           </div>
 
           {/* Stats */}
-          <div className="grid grid-cols-3 gap-4 mb-10">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 mb-10">
             <div className="glass-card p-5 bg-surface/20 border-white/5 text-center">
               <div className="text-2xl font-display font-black text-white">{asignaciones.length}</div>
               <div className="text-[9px] text-white/30 uppercase tracking-widest">Total</div>
