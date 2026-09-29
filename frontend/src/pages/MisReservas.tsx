@@ -166,7 +166,12 @@ const MisReservas = () => {
       if (!response.data.checkout_url) throw new Error('No se recibió el enlace de pago.');
       window.location.assign(response.data.checkout_url);
     } catch (error: any) {
-      showToast(error?.response?.data?.detail || 'No se pudo iniciar el pago.', 'error');
+      const message = error?.response?.data?.detail
+        || (error?.request
+          ? 'No hay conexión con el servidor de pagos. Verifica que Django esté iniciado e intenta de nuevo.'
+          : error?.message)
+        || 'No se pudo iniciar el pago.';
+      showToast(message, 'error');
     } finally {
       setPaymentLoading(null);
     }

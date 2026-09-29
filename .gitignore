@@ -23,6 +23,7 @@ db.sqlite3
 
 # Generated media and logs
 backend/media/
+backend/staticfiles/
 *.log
 
 # IDEs

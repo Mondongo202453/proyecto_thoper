@@ -385,8 +385,13 @@ const DashboardReservas = () => {
       emitDashboardRefresh();
     } catch (error: any) {
       const msg = error?.response?.data?.detail || 'Error al actualizar el estado';
-      toast.error(msg);
       setReservas(prev => prev.map(r => r.id === id ? previousReserva : r));
+      if (newStatusId === 5 && /personal asignado|rn06/i.test(msg)) {
+        toast.error('Asigna primero un miembro del personal. Abrimos el detalle de la reserva para hacerlo.');
+        await openReservaDetails(previousReserva);
+      } else {
+        toast.error(msg);
+      }
     } finally {
       setUpdatingStatusId(null);
     }
