@@ -25,6 +25,12 @@ Railway.
    | `CSRF_TRUSTED_ORIGINS` | Orígenes HTTPS exactos que necesiten enviar formularios a Django |
    | `FRONTEND_URL` | URL HTTPS del frontend en Vercel |
    | `MEDIA_ROOT` | `/app/media` |
+   | `EMAIL_BACKEND` | `django.core.mail.backends.smtp.EmailBackend` |
+   | `EMAIL_HOST` | Servidor SMTP del proveedor de correo |
+   | `EMAIL_PORT` | Puerto SMTP del proveedor (normalmente `587`) |
+   | `EMAIL_USE_TLS` | `True` |
+   | `EMAIL_USER` | Usuario SMTP, guardado como secreto |
+   | `EMAIL_PASS` | Contraseña o clave de aplicación SMTP, guardada como secreto |
 
    Si el servicio MySQL tiene otro nombre, ajusta `MySQL` en las referencias
    para que coincida con su nombre en Railway. No copies credenciales en el
@@ -48,6 +54,8 @@ Railway.
 El servidor solo publica los archivos bajo `media/uploads/` que usa el
 portafolio. Los PDFs de cotizaciones deben seguir descargándose por la acción
 autenticada de documentos, no mediante una URL pública de medios.
+Configura el SMTP antes de habilitar recuperación de contraseña; en producción
+Django usa SMTP para evitar que los enlaces de recuperación terminen en los logs.
 
 ## Desarrollo local
 

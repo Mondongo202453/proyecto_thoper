@@ -1,15 +1,20 @@
-from rest_framework import viewsets, generics, permissions, status, serializers
+import datetime
+import logging
+import uuid
+from smtplib import SMTPException
+
+from django.conf import settings
+from django.contrib.auth import authenticate
+from django.core.mail import send_mail
+from django.db import transaction
+from django.utils import timezone
+from rest_framework import generics, permissions, serializers, status, viewsets
 from rest_framework.decorators import action
+from rest_framework.exceptions import AuthenticationFailed
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
-from django.utils import timezone
-from django.conf import settings
-from django.core.mail import send_mail
-from django.contrib.auth import authenticate
-import uuid
-import datetime
 
 from .models import Usuario, Role, Status, ResetToken
 from .serializers import (
@@ -18,6 +23,8 @@ from .serializers import (
     PasswordResetConfirmSerializer
 )
 
+logger = logging.getLogger(__name__)
+
 
 # ─────────────────────────────────────────────────────────
 # Login personalizado con protección de fuerza bruta (RN05)
@@ -25,24 +32,23 @@ from .serializers import (
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
     def validate(self, attrs):
         # Determinar si es correo o username
-        identifier = attrs.get(self.username_field, '')
+        identifier = attrs.get(self.username_field, '').strip()
+        usuario = None
         try:
             if '@' in identifier:
-                usuario = Usuario.objects.get(correo=identifier)
+                usuario = Usuario.objects.get(correo__iexact=identifier)
             else:
-                usuario = Usuario.objects.get(nombre_usuario=identifier)
+                usuario = Usuario.objects.get(nombre_usuario__iexact=identifier)
         except Usuario.DoesNotExist:
-            raise serializers.ValidationError("Credenciales inválidas.")
+            # Evitar timing attacks
+            Usuario().set_password(attrs.get('password'))
+            raise AuthenticationFailed('Credenciales inválidas.')
 
         # Verificar bloqueo (RN05)
         if usuario.bloqueado_hasta and usuario.bloqueado_hasta > timezone.now():
-            minutos_restantes = int((usuario.bloqueado_hasta - timezone.now()).total_seconds() / 60) + 1
-            raise serializers.ValidationError(
-                f"Cuenta bloqueada por {minutos_restantes} minuto(s) debido a múltiples intentos fallidos."
-            )
+            raise AuthenticationFailed('Credenciales inválidas.')
 
         # Autenticar
-        from django.contrib.auth import authenticate
         user_auth = authenticate(
             request=self.context.get('request'),
             username=usuario.nombre_usuario,
@@ -50,7 +56,6 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         )
 
         if user_auth is None:
-            # Incrementar intentos fallidos
             usuario.intentos_fallidos += 1
             max_intentos = getattr(settings, 'MAX_LOGIN_ATTEMPTS', 5)
             lockout_min = getattr(settings, 'LOGIN_LOCKOUT_MINUTES', 15)
@@ -59,13 +64,10 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
                 usuario.bloqueado_hasta = timezone.now() + datetime.timedelta(minutes=lockout_min)
                 usuario.intentos_fallidos = 0
                 usuario.save(update_fields=['intentos_fallidos', 'bloqueado_hasta'])
-                raise serializers.ValidationError(
-                    f"Has superado los {max_intentos} intentos. Cuenta bloqueada por {lockout_min} minutos."
-                )
-            usuario.save(update_fields=['intentos_fallidos'])
-            raise serializers.ValidationError(
-                f"Credenciales inválidas. Intentos restantes: {max_intentos - usuario.intentos_fallidos}."
-            )
+            else:
+                usuario.save(update_fields=['intentos_fallidos'])
+
+            raise AuthenticationFailed('Credenciales inválidas.')
 
         # Login exitoso — resetear intentos
         usuario.intentos_fallidos = 0
@@ -91,12 +93,6 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
 
 class CustomTokenObtainPairView(TokenObtainPairView):
     serializer_class = CustomTokenObtainPairSerializer
-
-    def post(self, request, *args, **kwargs):
-        try:
-            return super().post(request, *args, **kwargs)
-        except Exception as exc:
-            return Response({'detail': str(exc)}, status=status.HTTP_401_UNAUTHORIZED)
 
 
 # ─────────────────────────────────────────────────────────
@@ -136,34 +132,41 @@ class PasswordResetRequestView(APIView):
     permission_classes = [permissions.AllowAny]
 
     def post(self, request):
-        correo = request.data.get('correo', '').strip()
-        if not correo:
-            return Response({'detail': 'Correo es obligatorio.'}, status=status.HTTP_400_BAD_REQUEST)
+        serializer = PasswordResetRequestSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        correo = serializer.validated_data['correo']
 
+        token_str = None
         try:
-            usuario = Usuario.objects.get(correo=correo)
+            with transaction.atomic():
+                usuario = Usuario.objects.select_for_update().get(correo__iexact=correo)
+                ResetToken.objects.filter(usuario=usuario, usado=False).update(usado=True)
+                token_str = str(uuid.uuid4())
+                expira_en = timezone.now() + datetime.timedelta(minutes=30)
+                ResetToken.objects.create(usuario=usuario, token=token_str, expira_en=expira_en)
         except Usuario.DoesNotExist:
-            # Por seguridad, siempre respondemos igual
-            return Response({'detail': 'Si el correo existe, recibirás un enlace de recuperación.'})
+            usuario = None
 
-        # Invalidar tokens anteriores
-        ResetToken.objects.filter(usuario=usuario, usado=False).update(usado=True)
+        if usuario is not None:
+            frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:5173')
+            reset_url = f"{frontend_url.rstrip('/')}/recuperar-password?token={token_str}"
 
-        token_str = str(uuid.uuid4())
-        expira_en = timezone.now() + datetime.timedelta(minutes=30)
-        ResetToken.objects.create(usuario=usuario, token=token_str, expira_en=expira_en)
+            try:
+                sent = send_mail(
+                    subject='Recuperación de contraseña — Topher Producciones',
+                    message=f"""Hola {usuario.nombre_completo},\n\nHaz clic en el siguiente enlace para restablecer tu contraseña:\n{reset_url}\n\nEste enlace expira en 30 minutos y solo puede usarse una vez.\n\nSi no solicitaste este cambio, ignora este correo.\n\nEquipo Topher Producciones.""",
+                    from_email=settings.DEFAULT_FROM_EMAIL,
+                    recipient_list=[correo],
+                    fail_silently=False,
+                )
+                if sent != 1:
+                    logger.error('No se pudo enviar el correo de recuperación de contraseña.')
+            except (OSError, SMTPException):
+                logger.exception('Falló el envío del correo de recuperación de contraseña.')
 
-        frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:5173')
-        reset_url = f"{frontend_url}/reset-password?token={token_str}"
-
-        send_mail(
-            subject='Recuperación de contraseña — Topher Producciones',
-            message=f"""Hola {usuario.nombre_completo},\n\nHaz clic en el siguiente enlace para restablecer tu contraseña:\n{reset_url}\n\nEste enlace expira en 30 minutos y solo puede usarse una vez.\n\nSi no solicitaste este cambio, ignora este correo.\n\nEquipo Topher Producciones.""",
-            from_email=settings.DEFAULT_FROM_EMAIL,
-            recipient_list=[correo],
-            fail_silently=True,
-        )
-
+        # Nunca se devuelve el token ni el enlace en la API. Solamente quien
+        # controle el correo registrado puede acceder al enlace de recuperación.
         return Response({'detail': 'Si el correo existe, recibirás un enlace de recuperación.'})
 
 
@@ -171,31 +174,33 @@ class PasswordResetConfirmView(APIView):
     permission_classes = [permissions.AllowAny]
 
     def post(self, request):
-        token_str = request.data.get('token', '').strip()
-        nueva_password = request.data.get('nueva_password', '').strip()
-
-        if not token_str or not nueva_password:
-            return Response({'detail': 'Token y nueva contraseña son obligatorios.'}, status=status.HTTP_400_BAD_REQUEST)
-
-        if len(nueva_password) < 8:
-            return Response({'detail': 'La contraseña debe tener al menos 8 caracteres.'}, status=status.HTTP_400_BAD_REQUEST)
+        serializer = PasswordResetConfirmSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            reset_token = ResetToken.objects.get(token=token_str, usado=False)
+            with transaction.atomic():
+                reset_token = ResetToken.objects.select_for_update().select_related('usuario').get(
+                    token=serializer.validated_data['token'],
+                    usado=False,
+                )
+                if reset_token.expira_en < timezone.now():
+                    return Response(
+                        {'detail': 'El enlace de recuperación ha expirado. Solicita uno nuevo.'},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+
+                usuario = reset_token.usuario
+                usuario.set_password(serializer.validated_data['nueva_password'])
+                usuario.intentos_fallidos = 0
+                usuario.bloqueado_hasta = None
+                usuario.save(update_fields=['password', 'intentos_fallidos', 'bloqueado_hasta'])
+
+                reset_token.usado = True
+                reset_token.save(update_fields=['usado'])
+                ResetToken.objects.filter(usuario=usuario, usado=False).exclude(pk=reset_token.pk).update(usado=True)
         except ResetToken.DoesNotExist:
             return Response({'detail': 'Token inválido o ya utilizado.'}, status=status.HTTP_400_BAD_REQUEST)
-
-        if reset_token.expira_en < timezone.now():
-            return Response({'detail': 'El enlace de recuperación ha expirado. Solicita uno nuevo.'}, status=status.HTTP_400_BAD_REQUEST)
-
-        usuario = reset_token.usuario
-        usuario.set_password(nueva_password)
-        usuario.intentos_fallidos = 0
-        usuario.bloqueado_hasta = None
-        usuario.save()
-
-        reset_token.usado = True
-        reset_token.save()
 
         return Response({'detail': 'Contraseña actualizada exitosamente. Ya puedes iniciar sesión.'})
 
