@@ -8,12 +8,12 @@
 
 # [proyecto TOPHER]
 
-> [Una frase que diga qué hace tu proyecto y para quién. Ej: "Sistema web para que las tiendas de barrio lleven el control del fiado de sus clientes."]
+> [aplicacion web para la empresa TOPHER producciones, dedeicada a la produccion y ejecucion de shows de efectos especiales y pirotecnia profesional para eventos]
 
 ![Captura principal del proyecto](docs/img/captura-principal.png)
 
 ## 📌 El problema
-[2 o 3 líneas: qué problema real resuelve y a quién le pasa.]
+[el proyecto TOPHER resuelve el problema de falta de visualizacion web a la empresa TOPHER producciones.]
 
 ## ✅ La solución
 [2 o 3 líneas: cómo lo resuelve tu proyecto.]
@@ -64,7 +64,7 @@ cd [repo]
 |---|---|---|
 | [daniel bustos] | [frontend, base de datos] | [@Mondongo202453] |
 | [julian presiga] | [backend] | [@presiga84] |
-| [cristian vasquez] | [backend] | [@usuario] |
+| [cristian vasquez] | [backend] | [@crixx3101] |
 | [juanpablo velilla] | [base de datos] | [@velilla07] |
 
 ## 📄 Contexto
