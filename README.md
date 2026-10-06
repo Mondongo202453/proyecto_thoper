@@ -65,7 +65,7 @@ cd [repo]
 | [daniel bustos] | [frontend, base de datos] | [@Mondongo202453] |
 | [julian presiga] | [backend] | [@presiga84] |
 | [cristian vasquez] | [backend] | [@usuario] |
-| [juanpablo velilla] | [base de datos] | [@usuario] |
+| [juanpablo velilla] | [base de datos] | [@velilla07] |
 
 ## 📄 Contexto
 Proyecto formativo del programa **Análisis y Desarrollo de Software (ADSO)** · SENA · [Centro] · [Año].
