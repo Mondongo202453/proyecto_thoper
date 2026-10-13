@@ -31,12 +31,18 @@
 | Base de datos | [MariaDB] |
 | Otras | [Git, GitHub,versel,railway] |
 
-## 🏗️ Arquitectura
-[Explica en pocas líneas cómo se conectan las partes, o pon un diagrama.]
 
+## 🏗️ Arquitectura
+
+Topher Producciones cuenta con un frontend desarrollado con React y Vite, un backend desarrollado con Django y Python, y una base de datos MariaDB.
+
+```mermaid
+flowchart TD
+    U[Usuario] --> F[Frontend: React y Vite]
+    F -->|Solicitudes HTTP| B[Backend: Django y Python]
+    B --> D[(Base de datos: MariaDB)]
 ```
-[Usuario] → [Frontend] → [Backend] → [Base de datos]
-```
+
 
 ## 🚀 Cómo ejecutarlo
 **Requisitos:** [Ej: XAMPP 8, Python 3.12, Node 20]
