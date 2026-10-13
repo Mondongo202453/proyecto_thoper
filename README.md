@@ -54,10 +54,25 @@ cd [repo]
 **Demo:** [Enlace al proyecto desplegado o al video funcionando]
 
 ## 📸 Capturas
-| Pantalla | Descripción |
-|---|---|
-| ![](docs/img/captura-1.png) | [Qué se ve] |
-| ![](docs/img/captura-2.png) | [Qué se ve] |
+
+### Página de inicio
+
+Página principal de TOPHER Producciones, con presentación de la empresa y accesos para solicitar cotizaciones y explorar el catálogo.
+
+![Página de inicio de TOPHER Producciones](docs/img/captura-principal.png)
+
+### Servicios
+
+Sección de servicios con tarjetas de productos, imágenes, descripciones y precios de referencia.
+
+![Servicios de TOPHER Producciones](docs/img/captura-servicios.png)
+
+### Portafolio
+
+Galería de proyectos y eventos realizados por TOPHER Producciones, donde se muestran experiencias visuales, montajes y efectos especiales para diferentes tipos de celebraciones.
+
+![Portafolio de TOPHER Producciones](docs/img/captura-portafolio.png)
+
 
 ## 👥 Equipo
 | Nombre | Rol | GitHub |
