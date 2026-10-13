@@ -39,17 +39,62 @@
 ```
 
 ## 🚀 Cómo ejecutarlo
-**Requisitos:** [Ej: XAMPP 8, Python 3.12, Node 20]
+**Requisitos:** Windows, Git, XAMPP con MySQL/MariaDB, Python 3.11 y Node.js 22.12 o superior.
 
-```bash
-# 1. Clonar el repositorio
-git clone https://github.com/[usuario]/[repo].git
-cd [repo]
+### 1. Clonar el repositorio
 
-# 2. [Instalar dependencias / importar la base de datos]
+Abre PowerShell y ejecuta:
 
-# 3. [Ejecutar]
+```powershell
+git clone https://github.com/Mondongo202453/proyecto_thoper.git
+Set-Location proyecto_thoper
 ```
+
+### 2. Iniciar e importar la base de datos local
+
+1. Abre el panel de XAMPP e inicia **Apache** y **MySQL** (Apache permite abrir phpMyAdmin).
+2. Entra a [http://localhost/phpmyadmin](http://localhost/phpmyadmin) y selecciona **Importar**.
+3. Elige `database/topher_db.sql` dentro de la carpeta del proyecto y pulsa **Importar**. El archivo crea la base `topher_db`.
+
+### 3. Configurar el backend
+
+Crea el archivo local de variables de entorno y ábrelo para editar:
+
+```powershell
+Copy-Item .\backend\.env.example .\backend\.env
+notepad .\backend\.env
+```
+
+En `backend/.env`, confirma que la base coincida con la importada (`DB_NAME=topher_db`) y ajusta `DB_USER`, `DB_PASSWORD`, `DB_HOST` y `DB_PORT` a tu instalación de XAMPP. Reemplaza también `SECRET_KEY` por una clave de desarrollo propia. No subas el archivo `.env` ni credenciales reales al repositorio.
+
+Desde la carpeta raíz del proyecto, instala las dependencias y aplica las migraciones:
+
+```powershell
+py -3.11 -m venv backend\env
+& .\backend\env\Scripts\python.exe -m pip install --upgrade pip
+& .\backend\env\Scripts\python.exe -m pip install -r .\backend\requirements.txt
+& .\backend\env\Scripts\python.exe .\backend\manage.py migrate
+```
+
+Inicia el backend:
+
+```powershell
+& .\backend\env\Scripts\python.exe .\backend\manage.py runserver 127.0.0.1:8000
+```
+
+Déjalo abierto en esa terminal. Para detenerlo, usa `Ctrl+C`.
+
+### 4. Iniciar el frontend
+
+Abre una segunda ventana de PowerShell, sitúate en la carpeta raíz del proyecto e inicia Vite:
+
+```powershell
+Set-Location .\frontend
+npm ci
+npm run dev
+```
+
+Abre la dirección que Vite muestra en la terminal (normalmente [http://localhost:5173](http://localhost:5173)). El frontend usa por defecto la API local `http://127.0.0.1:8000/api`. Para detenerlo, usa `Ctrl+C`.
 
 **Demo:** [Enlace al proyecto desplegado o al video funcionando]
 
