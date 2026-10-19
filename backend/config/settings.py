@@ -14,6 +14,7 @@ from pathlib import Path
 from decouple import config
 import pymysql
 from datetime import timedelta
+from django.core.exceptions import ImproperlyConfigured
 
 pymysql.install_as_MySQLdb()
 
@@ -29,6 +30,31 @@ SECRET_KEY = config('SECRET_KEY')
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = config('DEBUG', default=False, cast=bool)
+
+PAYMENT_MODE = config('PAYMENT_MODE', default='mock' if DEBUG else 'disabled').strip().lower()
+if PAYMENT_MODE not in {'mock', 'wompi_sandbox', 'disabled'}:
+    raise ImproperlyConfigured(
+        'PAYMENT_MODE must be one of: mock, wompi_sandbox, disabled.'
+    )
+if PAYMENT_MODE == 'mock' and not DEBUG:
+    raise ImproperlyConfigured('The local payment simulator requires DEBUG=True.')
+
+WOMPI_PUBLIC_KEY = config('WOMPI_PUBLIC_KEY', default='').strip()
+WOMPI_INTEGRITY_SECRET = config('WOMPI_INTEGRITY_SECRET', default='').strip()
+WOMPI_EVENTS_SECRET = config('WOMPI_EVENTS_SECRET', default='').strip()
+if PAYMENT_MODE == 'wompi_sandbox':
+    if not WOMPI_PUBLIC_KEY.startswith('pub_test_') or 'xxxx' in WOMPI_PUBLIC_KEY.lower():
+        raise ImproperlyConfigured(
+            'WOMPI_SANDBOX requires a real Wompi test public key beginning with pub_test_.'
+        )
+    if not WOMPI_INTEGRITY_SECRET or 'xxxx' in WOMPI_INTEGRITY_SECRET.lower():
+        raise ImproperlyConfigured(
+            'WOMPI_SANDBOX requires the Wompi test integrity secret.'
+        )
+    if not WOMPI_EVENTS_SECRET or 'xxxx' in WOMPI_EVENTS_SECRET.lower():
+        raise ImproperlyConfigured(
+            'WOMPI_SANDBOX requires the Wompi test events secret.'
+        )
 
 ALLOWED_HOSTS = [
     host.strip()

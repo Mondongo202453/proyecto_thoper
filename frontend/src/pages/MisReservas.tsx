@@ -52,6 +52,8 @@ interface Notificacion {
   enviado_en: string;
 }
 
+type PaymentMode = 'mock' | 'wompi_sandbox' | 'disabled';
+
 const MisReservas = () => {
   const [reservas, setReservas] = useState<Reserva[]>([]);
   const [loading, setLoading] = useState(true);
@@ -70,6 +72,7 @@ const MisReservas = () => {
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [pagos, setPagos] = useState<any[]>([]);
   const [paymentLoading, setPaymentLoading] = useState<string | null>(null);
+  const [paymentMode, setPaymentMode] = useState<PaymentMode | null>(null);
   const navigate = useNavigate();
 
   const userRaw = localStorage.getItem('user');
@@ -85,6 +88,19 @@ const MisReservas = () => {
     if (!token) { navigate('/login'); return; }
     fetchReservas();
     fetchNotificaciones();
+    api.get('/pagos/configuracion/')
+      .then((response) => {
+        const mode = response.data?.modo;
+        if (mode === 'mock' || mode === 'wompi_sandbox' || mode === 'disabled') {
+          setPaymentMode(mode);
+          return;
+        }
+        throw new Error('El servidor devolvió un modo de pago inválido.');
+      })
+      .catch(() => {
+        setPaymentMode('disabled');
+        showToast('No se pudo verificar el modo de pago. Los pagos se deshabilitaron por seguridad.', 'error');
+      });
 
     const syncInterval = window.setInterval(() => {
       fetchReservas(true);
@@ -154,8 +170,11 @@ const MisReservas = () => {
 
   const handleSelectReserva = (r: Reserva) => {
     setSelected(r);
+    setPagos([]);
     fetchDocumentos(r.id);
-    api.get(`/pagos/reserva/${r.id}/`).then((res) => setPagos(res.data || [])).catch(() => setPagos([]));
+    api.get(`/pagos/reserva/${r.id}/`)
+      .then((res) => setPagos(res.data || []))
+      .catch(() => showToast('No se pudo cargar el historial de pagos.', 'error'));
   };
 
   const iniciarPago = async (tipo: 'ANTICIPO' | 'TOTAL') => {
@@ -163,6 +182,11 @@ const MisReservas = () => {
     setPaymentLoading(tipo);
     try {
       const response = await api.post('/pagos/crear/', { reserva_id: selected.id, tipo });
+      if (response.data.modo === 'SIMULADO') {
+        setPagos((current) => [response.data, ...current]);
+        showToast('Pago de prueba creado. No se inició ningún cobro.');
+        return;
+      }
       if (!response.data.checkout_url) throw new Error('No se recibió el enlace de pago.');
       window.location.assign(response.data.checkout_url);
     } catch (error: any) {
@@ -172,6 +196,24 @@ const MisReservas = () => {
           : error?.message)
         || 'No se pudo iniciar el pago.';
       showToast(message, 'error');
+    } finally {
+      setPaymentLoading(null);
+    }
+  };
+
+  const simularResultadoPago = async (pagoId: number, estado: 'APPROVED' | 'DECLINED') => {
+    setPaymentLoading(`SIMULAR_${estado}`);
+    try {
+      const response = await api.post(`/pagos/${pagoId}/simular/`, { estado });
+      setPagos((current) => current.map((pago) => pago.id === pagoId ? response.data : pago));
+      showToast(
+        estado === 'APPROVED'
+          ? 'Pago aprobado en modo de prueba. No se realizó ningún cobro.'
+          : 'Pago rechazado en modo de prueba. No se realizó ningún cobro.',
+        estado === 'APPROVED' ? 'success' : 'error',
+      );
+    } catch (error: any) {
+      showToast(error?.response?.data?.detail || 'No se pudo simular el resultado del pago.', 'error');
     } finally {
       setPaymentLoading(null);
     }
@@ -228,6 +270,8 @@ const MisReservas = () => {
     return r.servicios_contratados?.reduce((sum: number, s: any) => sum + parseFloat(s.precio_calculado || 0), 0) || 0;
   };
   const unreadNotifications = notificaciones.filter((notification) => !notification.leido).length;
+  const pendingSimulatedPayment = pagos.find((pago) => pago.modo === 'SIMULADO' && pago.estado === 'PENDIENTE');
+  const hasPendingPayment = pagos.some((pago) => pago.estado === 'PENDIENTE');
 
   return (
     <div className="min-h-screen bg-background text-white flex flex-col">
@@ -542,13 +586,58 @@ const MisReservas = () => {
                             ${pagos.filter((p) => p.estado === 'APPROVED').reduce((sum, p) => sum + Number(p.monto), 0).toLocaleString()} COP
                           </span>
                         </div>
+                        {paymentMode === 'mock' && (
+                          <p className="mb-3 rounded-lg border border-sky-400/20 bg-sky-400/5 px-3 py-2 text-xs text-sky-200">
+                            Modo de prueba local: no se conecta a Wompi ni se cobran tarjetas.
+                          </p>
+                        )}
+                        {paymentMode === 'wompi_sandbox' && (
+                          <p className="mb-3 rounded-lg border border-sky-400/20 bg-sky-400/5 px-3 py-2 text-xs text-sky-200">
+                            Wompi Sandbox: usa únicamente credenciales y medios de pago de prueba.
+                          </p>
+                        )}
+                        {paymentMode === 'disabled' && (
+                          <p className="mb-3 rounded-lg border border-amber-400/20 bg-amber-400/5 px-3 py-2 text-xs text-amber-200">
+                            Pasarela deshabilitada en este entorno para evitar cobros.
+                          </p>
+                        )}
+                        {pendingSimulatedPayment && (
+                          <div className="mb-3 rounded-lg border border-sky-400/20 bg-sky-400/5 p-3">
+                            <p className="mb-2 text-xs text-sky-100">
+                              Prueba pendiente por ${Number(pendingSimulatedPayment.monto).toLocaleString()} COP. Elige un resultado simulado:
+                            </p>
+                            <div className="grid grid-cols-2 gap-2">
+                              <button
+                                type="button"
+                                onClick={() => simularResultadoPago(pendingSimulatedPayment.id, 'APPROVED')}
+                                disabled={!!paymentLoading}
+                                className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-300 disabled:opacity-50"
+                              >
+                                {paymentLoading === 'SIMULAR_APPROVED' ? 'Procesando...' : 'Simular aprobado'}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => simularResultadoPago(pendingSimulatedPayment.id, 'DECLINED')}
+                                disabled={!!paymentLoading}
+                                className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs font-semibold text-red-300 disabled:opacity-50"
+                              >
+                                {paymentLoading === 'SIMULAR_DECLINED' ? 'Procesando...' : 'Simular rechazado'}
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                        {hasPendingPayment && !pendingSimulatedPayment && (
+                          <p className="mb-3 rounded-lg border border-amber-400/20 bg-amber-400/5 px-3 py-2 text-xs text-amber-200">
+                            Ya existe un pago pendiente. Espera a que Wompi confirme su resultado antes de iniciar otro.
+                          </p>
+                        )}
                         {[5, 6, 8].includes(selected.status_id) ? (
                           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                            <button type="button" onClick={() => iniciarPago('ANTICIPO')} disabled={!!paymentLoading} className="rounded-lg border border-primary/30 bg-primary/10 px-3 py-2 text-xs font-semibold text-primary disabled:opacity-50">
-                            {paymentLoading === 'ANTICIPO' ? 'Preparando...' : 'Pagar anticipo (50%)'}
+                            <button type="button" onClick={() => iniciarPago('ANTICIPO')} disabled={!!paymentLoading || hasPendingPayment || !paymentMode || paymentMode === 'disabled'} className="rounded-lg border border-primary/30 bg-primary/10 px-3 py-2 text-xs font-semibold text-primary disabled:opacity-50">
+                            {paymentLoading === 'ANTICIPO' ? 'Preparando...' : paymentMode === 'mock' ? 'Probar anticipo (50%)' : 'Pagar anticipo (50%)'}
                             </button>
-                            <button type="button" onClick={() => iniciarPago('TOTAL')} disabled={!!paymentLoading} className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-300 disabled:opacity-50">
-                            {paymentLoading === 'TOTAL' ? 'Preparando...' : 'Pagar totalidad'}
+                            <button type="button" onClick={() => iniciarPago('TOTAL')} disabled={!!paymentLoading || hasPendingPayment || !paymentMode || paymentMode === 'disabled'} className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-300 disabled:opacity-50">
+                            {paymentLoading === 'TOTAL' ? 'Preparando...' : paymentMode === 'mock' ? 'Probar pago total' : 'Pagar totalidad'}
                             </button>
                           </div>
                         ) : (
@@ -556,7 +645,12 @@ const MisReservas = () => {
                             Los pagos estarán disponibles cuando el administrador confirme tu reserva.
                           </p>
                         )}
-                        <p className="mt-2 text-[10px] text-white/40">Pago seguro con Wompi.</p>
+                        {pagos.slice(0, 3).map((pago) => (
+                          <p key={pago.id} className="mt-2 flex justify-between text-[10px] text-white/50">
+                            <span>{pago.modo === 'SIMULADO' ? 'Prueba local' : 'Wompi'} · {pago.tipo} · ${Number(pago.monto).toLocaleString()} COP</span>
+                            <span>{pago.estado}</span>
+                          </p>
+                        ))}
                       </div>
                   </div>
                 </div>

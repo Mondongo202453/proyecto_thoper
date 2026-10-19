@@ -7,6 +7,6 @@ class PagoSerializer(serializers.ModelSerializer):
         model = Pago
         fields = '__all__'
         read_only_fields = (
-            'usuario_id', 'reserva_id', 'referencia', 'monto', 'moneda', 'estado',
+            'usuario_id', 'reserva_id', 'referencia', 'monto', 'moneda', 'modo', 'estado',
             'wompi_transaction_id', 'checkout_url', 'creado_en', 'actualizado_en',
         )

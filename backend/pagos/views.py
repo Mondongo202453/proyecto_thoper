@@ -4,7 +4,7 @@ import secrets
 from decimal import Decimal, ROUND_HALF_UP
 from urllib.parse import urlencode
 
-from decouple import config
+from django.conf import settings
 from django.db import transaction
 from rest_framework import permissions, status
 from rest_framework.decorators import api_view, permission_classes
@@ -30,7 +30,7 @@ def _monto_a_cobrar(tipo, total, monto_reservado):
 
 
 def _checkout_url(referencia, monto, public_key, integrity_secret):
-    frontend_url = config('FRONTEND_URL', default='http://127.0.0.1:5173')
+    frontend_url = settings.FRONTEND_URL
     monto = Decimal(str(monto))
     amount = int((monto * 100).quantize(Decimal('1'), rounding=ROUND_HALF_UP))
     checksum = hashlib.sha256(f'{referencia}{amount}COP{integrity_secret}'.encode()).hexdigest()
@@ -53,14 +53,22 @@ def _checksum_evento_valido(transaction_data, properties, timestamp, checksum, s
     return hmac.compare_digest(expected, checksum.lower())
 
 
+@api_view(['GET'])
+@permission_classes([permissions.IsAuthenticated])
+def configuracion_pagos(request):
+    return Response({
+        'modo': settings.PAYMENT_MODE,
+        'habilitado': settings.PAYMENT_MODE in {'mock', 'wompi_sandbox'},
+        'simulacion_local': settings.PAYMENT_MODE == 'mock',
+    })
+
+
 @api_view(['POST'])
 @permission_classes([permissions.IsAuthenticated])
 def crear_pago(request):
-    public_key = config('WOMPI_PUBLIC_KEY', default='').strip()
-    integrity_secret = config('WOMPI_INTEGRITY_SECRET', default='').strip()
-    if not public_key or not integrity_secret or 'xxxxxxxx' in public_key.lower():
+    if settings.PAYMENT_MODE == 'disabled':
         return Response(
-            {'detail': 'Wompi no está configurado. Define WOMPI_PUBLIC_KEY y WOMPI_INTEGRITY_SECRET en backend/.env y reinicia Django.'},
+            {'detail': 'Los pagos están deshabilitados en este entorno para evitar cobros.'},
             status=status.HTTP_503_SERVICE_UNAVAILABLE,
         )
 
@@ -83,14 +91,18 @@ def crear_pago(request):
             if reserva.status_id not in [5, 6, 8]:
                 return Response({'detail': 'La reserva debe estar confirmada para pagar.'}, status=status.HTTP_400_BAD_REQUEST)
 
+            pagos_reserva = Pago.objects.filter(reserva_id=reserva.id)
+            if pagos_reserva.filter(estado='PENDIENTE').exists():
+                return Response(
+                    {'detail': 'Ya hay un pago pendiente para esta reserva. Espera su resultado antes de iniciar otro.'},
+                    status=status.HTTP_409_CONFLICT,
+                )
+
             total = _total_reserva(reserva)
             monto_reservado = sum(
                 (
                     pago.monto
-                    for pago in Pago.objects.filter(
-                        reserva_id=reserva.id,
-                        estado__in=['APPROVED', 'PENDIENTE'],
-                    )
+                    for pago in pagos_reserva.filter(estado='APPROVED')
                 ),
                 Decimal('0'),
             )
@@ -102,17 +114,63 @@ def crear_pago(request):
                 )
 
             referencia = f'TOPHER-{reserva.id}-{secrets.token_hex(5).upper()}'
+            modo = 'SIMULADO' if settings.PAYMENT_MODE == 'mock' else 'WOMPI'
+            checkout_url = ''
+            if settings.PAYMENT_MODE == 'wompi_sandbox':
+                checkout_url = _checkout_url(
+                    referencia,
+                    monto,
+                    settings.WOMPI_PUBLIC_KEY,
+                    settings.WOMPI_INTEGRITY_SECRET,
+                )
             pago = Pago.objects.create(
                 reserva_id=reserva.id,
                 usuario_id=request.user.id,
                 referencia=referencia,
                 tipo=tipo,
                 monto=monto,
-                checkout_url=_checkout_url(referencia, monto, public_key, integrity_secret),
+                modo=modo,
+                checkout_url=checkout_url,
             )
     except Reserva.DoesNotExist:
         return Response({'detail': 'Reserva no encontrada.'}, status=status.HTTP_404_NOT_FOUND)
     return Response(PagoSerializer(pago).data, status=status.HTTP_201_CREATED)
+
+
+@api_view(['POST'])
+@permission_classes([permissions.IsAuthenticated])
+def simular_pago(request, pago_id):
+    if not settings.DEBUG or settings.PAYMENT_MODE != 'mock':
+        return Response(
+            {'detail': 'La simulación solo está disponible en modo local de desarrollo.'},
+            status=status.HTTP_404_NOT_FOUND,
+        )
+
+    nuevo_estado = str(request.data.get('estado', '')).upper()
+    if nuevo_estado not in {'APPROVED', 'DECLINED'}:
+        return Response(
+            {'detail': 'El resultado simulado debe ser APPROVED o DECLINED.'},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    try:
+        with transaction.atomic():
+            pago = Pago.objects.select_for_update().get(
+                pk=pago_id,
+                usuario_id=request.user.id,
+                modo='SIMULADO',
+            )
+            if pago.estado != 'PENDIENTE':
+                return Response(
+                    {'detail': 'Este pago de prueba ya tiene un resultado.'},
+                    status=status.HTTP_409_CONFLICT,
+                )
+            pago.estado = nuevo_estado
+            pago.save(update_fields=['estado', 'actualizado_en'])
+    except Pago.DoesNotExist:
+        return Response({'detail': 'Pago de prueba no encontrado.'}, status=status.HTTP_404_NOT_FOUND)
+
+    return Response(PagoSerializer(pago).data)
 
 
 @api_view(['GET'])
@@ -125,6 +183,12 @@ def pagos_reserva(request, reserva_id):
 @api_view(['POST'])
 @permission_classes([permissions.AllowAny])
 def wompi_webhook(request):
+    if settings.PAYMENT_MODE != 'wompi_sandbox':
+        return Response(
+            {'detail': 'El webhook de Wompi solo está habilitado para el modo Sandbox.'},
+            status=status.HTTP_503_SERVICE_UNAVAILABLE,
+        )
+
     data = request.data
     if not isinstance(data, dict) or data.get('event') != 'transaction.updated':
         return Response({'detail': 'Formato de evento inválido.'}, status=status.HTTP_400_BAD_REQUEST)
@@ -152,7 +216,7 @@ def wompi_webhook(request):
     timestamp = data.get('timestamp')
     if not isinstance(timestamp, (str, int)) or not str(timestamp).isdigit():
         return Response({'detail': 'Marca de tiempo inválida.'}, status=status.HTTP_400_BAD_REQUEST)
-    events_secret = config('WOMPI_EVENTS_SECRET', default='').strip()
+    events_secret = settings.WOMPI_EVENTS_SECRET
     if not events_secret:
         return Response({'detail': 'El secreto de eventos de Wompi no está configurado.'}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
     if not _checksum_evento_valido(
@@ -181,11 +245,20 @@ def wompi_webhook(request):
     pago = Pago.objects.filter(referencia=referencia).first()
     if not pago:
         return Response({'detail': 'Pago no encontrado.'}, status=status.HTTP_404_NOT_FOUND)
+    if pago.modo != 'WOMPI':
+        return Response({'detail': 'La referencia no pertenece a una transacción de Wompi.'}, status=status.HTTP_400_BAD_REQUEST)
     if transaction_data.get('currency') != pago.moneda or monto_reportado != pago.monto:
         return Response({'detail': 'El monto o moneda de la transacción no coincide con el pago.'}, status=status.HTTP_400_BAD_REQUEST)
 
     with transaction.atomic():
         pago = Pago.objects.select_for_update().get(pk=pago.pk)
+        if pago.modo != 'WOMPI':
+            return Response({'detail': 'La referencia no pertenece a una transacción de Wompi.'}, status=status.HTTP_400_BAD_REQUEST)
+        if pago.wompi_transaction_id and pago.wompi_transaction_id != transaction_id:
+            return Response(
+                {'detail': 'El identificador de transacción no coincide con el pago.'},
+                status=status.HTTP_409_CONFLICT,
+            )
         if pago.estado in {'APPROVED', 'DECLINED', 'VOIDED', 'ERROR'}:
             return Response({'ok': True})
         pago.estado = nuevo_estado

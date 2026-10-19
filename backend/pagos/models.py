@@ -2,6 +2,7 @@ from django.db import models
 
 
 class Pago(models.Model):
+    MODOS = [('WOMPI', 'Wompi'), ('SIMULADO', 'Simulado local')]
     ESTADOS = [
         ('PENDIENTE', 'Pendiente'),
         ('APPROVED', 'Aprobado'),
@@ -17,6 +18,7 @@ class Pago(models.Model):
     tipo = models.CharField(max_length=10, choices=TIPOS)
     monto = models.DecimalField(max_digits=12, decimal_places=2)
     moneda = models.CharField(max_length=3, default='COP')
+    modo = models.CharField(max_length=20, choices=MODOS, default='WOMPI')
     estado = models.CharField(max_length=20, choices=ESTADOS, default='PENDIENTE')
     wompi_transaction_id = models.CharField(max_length=120, blank=True, null=True)
     checkout_url = models.URLField(max_length=1000, blank=True)

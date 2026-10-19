@@ -61,3 +61,24 @@ Django usa SMTP para evitar que los enlaces de recuperación terminen en los log
 
 Copia `.env.example` a `.env` solo para desarrollo local y reemplaza los valores
 de ejemplo. No uses el `.env` local ni credenciales reales en Railway.
+
+### Pruebas de pago sin cobros
+
+En desarrollo, `PAYMENT_MODE=mock` (valor predeterminado cuando `DEBUG=True`)
+crea pagos marcados como `SIMULADO`, sin redirigir a Wompi, enviar datos de
+tarjeta ni iniciar una transacción. Desde **Mis reservas**, inicia un pago de
+prueba y elige simularlo como aprobado o rechazado. El simulador solo funciona
+con `DEBUG=True`; si alguien intenta activarlo en producción, Django no inicia.
+
+El valor predeterminado fuera de desarrollo es `PAYMENT_MODE=disabled`, que
+bloquea la creación de pagos y deja los botones deshabilitados. Para probar la
+integración con Wompi sin dinero real, configura explícitamente
+`PAYMENT_MODE=wompi_sandbox` y las tres credenciales de prueba de Wompi
+(`pub_test_...`, secreto de integridad y secreto de eventos). La aplicación
+rechaza claves públicas que no sean de prueba. Nunca uses `pub_prod_` ni claves
+de producción en pruebas.
+
+Solo puede haber un pago pendiente por reserva a la vez; espera el resultado o
+rechazo del intento actual antes de crear otro. Para que Wompi Sandbox actualice
+el estado, configura el webhook público del servicio en
+`/api/pagos/wompi/webhook/` con su secreto de eventos de prueba.
