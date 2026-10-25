@@ -95,7 +95,7 @@ const Login = () => {
           )}
 
           <div>
-            <label className="block text-[10px] font-bold uppercase tracking-widest text-white/30 mb-2">
+            <label htmlFor="login-identifier" className="block text-[10px] font-bold uppercase tracking-widest text-white/30 mb-2">
               Usuario o Correo Electrónico
             </label>
             <div className="relative">
@@ -112,7 +112,7 @@ const Login = () => {
           </div>
 
           <div>
-            <label className="block text-[10px] font-bold uppercase tracking-widest text-white/30 mb-2">
+            <label htmlFor="login-password" className="block text-[10px] font-bold uppercase tracking-widest text-white/30 mb-2">
               Contraseña
             </label>
             <div className="relative">

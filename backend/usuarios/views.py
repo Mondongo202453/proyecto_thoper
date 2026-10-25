@@ -225,9 +225,16 @@ class UsuarioViewSet(viewsets.ModelViewSet):
     serializer_class = UsuarioSerializer
 
     def get_permissions(self):
-        if self.action in ['list', 'destroy']:
+        if self.action in ['list', 'create', 'update', 'partial_update', 'destroy', 'toggle_estado']:
             return [permissions.IsAdminUser()]
         return [permissions.IsAuthenticated()]
+
+    def get_queryset(self):
+        user = self.request.user
+        queryset = Usuario.objects.all()
+        if user.role_id != 1:
+            queryset = queryset.filter(pk=user.pk)
+        return queryset.order_by('id')
 
     def destroy(self, request, *args, **kwargs):
         """RN03: No eliminar usuario con reservas activas"""

@@ -76,7 +76,7 @@ class Usuario(AbstractBaseUser, PermissionsMixin):
 
     @property
     def is_staff(self):
-        return self.role_id in [1, 3]  # Admin or Staff
+        return self.role_id == 1  # Admin only; Django admin and DRF use this flag.
 
     @property
     def is_superuser(self):

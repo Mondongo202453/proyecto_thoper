@@ -104,10 +104,11 @@ const Register = () => {
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             <div>
-              <label className="block text-[10px] font-bold uppercase tracking-widest text-white/30 mb-2">Nombre Completo</label>
+              <label htmlFor="register-name" className="block text-[10px] font-bold uppercase tracking-widest text-white/30 mb-2">Nombre Completo</label>
               <div className="relative">
                 <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20" />
                 <input 
+                  id="register-name"
                   type="text" required
                   className="w-full bg-background border border-white/10 rounded-xl pl-12 pr-4 py-3.5 focus:border-primary outline-none transition-colors"
                   placeholder="Juan Perez"
@@ -117,10 +118,11 @@ const Register = () => {
               </div>
             </div>
             <div>
-              <label className="block text-[10px] font-bold uppercase tracking-widest text-white/30 mb-2">Nombre de Usuario</label>
+              <label htmlFor="register-username" className="block text-[10px] font-bold uppercase tracking-widest text-white/30 mb-2">Nombre de Usuario</label>
               <div className="relative">
                 <Flame className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20" />
                 <input 
+                  id="register-username"
                   type="text" required
                   className="w-full bg-background border border-white/10 rounded-xl pl-12 pr-4 py-3.5 focus:border-primary outline-none transition-colors"
                   placeholder="juan_p"
@@ -132,10 +134,11 @@ const Register = () => {
           </div>
 
           <div>
-            <label className="block text-[10px] font-bold uppercase tracking-widest text-white/30 mb-2">Correo Electrónico</label>
+            <label htmlFor="register-email" className="block text-[10px] font-bold uppercase tracking-widest text-white/30 mb-2">Correo Electrónico</label>
             <div className="relative">
               <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20" />
               <input 
+                id="register-email"
                 type="email" required
                 className="w-full bg-background border border-white/10 rounded-xl pl-12 pr-4 py-3.5 focus:border-primary outline-none transition-colors"
                 placeholder="juan@ejemplo.com"
@@ -147,10 +150,11 @@ const Register = () => {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             <div>
-              <label className="block text-[10px] font-bold uppercase tracking-widest text-white/30 mb-2">Contraseña</label>
+              <label htmlFor="register-password" className="block text-[10px] font-bold uppercase tracking-widest text-white/30 mb-2">Contraseña</label>
               <div className="relative">
                 <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20" />
                 <input 
+                  id="register-password"
                   type="password" required
                   className="w-full bg-background border border-white/10 rounded-xl pl-12 pr-4 py-3.5 focus:border-primary outline-none transition-colors"
                   placeholder="••••••••"
@@ -160,10 +164,11 @@ const Register = () => {
               </div>
             </div>
             <div>
-              <label className="block text-[10px] font-bold uppercase tracking-widest text-white/30 mb-2">Confirmar contraseña</label>
+              <label htmlFor="register-confirm-password" className="block text-[10px] font-bold uppercase tracking-widest text-white/30 mb-2">Confirmar contraseña</label>
               <div className="relative">
                 <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20" />
                 <input 
+                  id="register-confirm-password"
                   type="password" required
                   className="w-full bg-background border border-white/10 rounded-xl pl-12 pr-4 py-3.5 focus:border-primary outline-none transition-colors"
                   placeholder="••••••••"
@@ -173,19 +178,27 @@ const Register = () => {
               </div>
             </div>
             <div>
-              <label className="block text-[10px] font-bold uppercase tracking-widest text-white/30 mb-2">Teléfono</label>
+              <label htmlFor="register-phone" className="block text-[10px] font-bold uppercase tracking-widest text-white/30 mb-2">Teléfono</label>
               <div className="relative">
                 <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20" />
                 <input 
+                  id="register-phone"
                   type="text" required
                   className="w-full bg-background border border-white/10 rounded-xl pl-12 pr-4 py-3.5 focus:border-primary outline-none transition-colors"
-                  placeholder="3001234567"
+                  placeholder="Tu teléfono de contacto"
                   value={formData.telefono}
                   onChange={e => setFormData({...formData, telefono: e.target.value})}
                 />
               </div>
             </div>
           </div>
+
+          <p className="text-xs leading-relaxed text-white/40">
+            Usaremos tus datos para administrar tu cuenta y tus solicitudes.{' '}
+            <Link to="/privacidad" className="text-primary hover:underline">
+              Consulta el aviso de privacidad.
+            </Link>
+          </p>
 
           <button 
             type="submit" 

@@ -113,7 +113,7 @@ const RecuperarPassword = () => {
         {step === 'request' && (
           <form onSubmit={handleRequest} className="space-y-6">
             <div>
-              <label className="block text-[10px] font-bold uppercase tracking-widest text-white/30 mb-2">
+              <label htmlFor="reset-email" className="block text-[10px] font-bold uppercase tracking-widest text-white/30 mb-2">
                 Correo electrónico
               </label>
               <div className="relative">
@@ -141,7 +141,7 @@ const RecuperarPassword = () => {
           <form onSubmit={handleConfirm} className="space-y-6">
             {!token && (
               <div>
-                <label className="block text-[10px] font-bold uppercase tracking-widest text-white/30 mb-2">
+                <label htmlFor="reset-token" className="block text-[10px] font-bold uppercase tracking-widest text-white/30 mb-2">
                   Token de recuperación
                 </label>
                 <input
@@ -155,7 +155,7 @@ const RecuperarPassword = () => {
               </div>
             )}
             <div>
-              <label className="block text-[10px] font-bold uppercase tracking-widest text-white/30 mb-2">
+              <label htmlFor="reset-new-password" className="block text-[10px] font-bold uppercase tracking-widest text-white/30 mb-2">
                 Nueva contraseña
               </label>
               <div className="relative">
@@ -171,7 +171,7 @@ const RecuperarPassword = () => {
               </div>
             </div>
             <div>
-              <label className="block text-[10px] font-bold uppercase tracking-widest text-white/30 mb-2">
+              <label htmlFor="reset-confirm-password" className="block text-[10px] font-bold uppercase tracking-widest text-white/30 mb-2">
                 Confirmar nueva contraseña
               </label>
               <div className="relative">

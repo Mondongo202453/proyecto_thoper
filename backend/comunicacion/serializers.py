@@ -7,6 +7,19 @@ class NotificacionSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 class ContactoMensajeSerializer(serializers.ModelSerializer):
+    correo_remitente = serializers.EmailField(max_length=150)
+    mensaje = serializers.CharField(max_length=5000)
+
     class Meta:
         model = ContactoMensaje
-        fields = '__all__'
+        fields = (
+            'id',
+            'usuario',
+            'nombre_remitente',
+            'correo_remitente',
+            'asunto',
+            'mensaje',
+            'leido',
+            'recibido_en',
+        )
+        read_only_fields = ('id', 'usuario', 'leido', 'recibido_en')

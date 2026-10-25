@@ -1,6 +1,6 @@
 import React from 'react';
 import { Routes, Route, Link, useLocation } from 'react-router-dom';
-import { Flame, Phone, Menu, X, ChevronRight, Mail, Sparkles, LogOut } from 'lucide-react';
+import { Flame, Menu, X, ChevronRight, Sparkles, LogOut, Mail, MapPin, Phone } from 'lucide-react';
 
 import Services from './components/Services';
 import BookingForm from './components/BookingForm';
@@ -9,6 +9,7 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import RecuperarPassword from './pages/RecuperarPassword';
 import Contacto from './pages/Contacto';
+import Privacidad from './pages/Privacidad';
 import MisReservas from './pages/MisReservas';
 import PanelStaff from './pages/PanelStaff';
 import Dashboard from './pages/Dashboard';
@@ -41,19 +42,29 @@ const Footer = () => (
           <li><Link to="/servicios" className="hover:text-primary transition-colors">Servicios</Link></li>
           <li><Link to="/portafolio" className="hover:text-primary transition-colors">Portafolio</Link></li>
           <li><Link to="/contacto" className="hover:text-primary transition-colors">Contacto</Link></li>
+          <li><Link to="/privacidad" className="hover:text-primary transition-colors">Aviso de privacidad</Link></li>
         </ul>
       </div>
       <div>
         <h4 className="font-bold mb-6 uppercase tracking-widest text-xs text-white/30">Contacto</h4>
         <ul className="space-y-4 text-sm text-white/60">
-          <li className="flex items-center gap-2"><Phone className="w-4 h-4 text-primary" /> +57 300 000 0000</li>
-          <li className="flex items-center gap-2"><Mail className="w-4 h-4 text-primary" /> contacto@topher.com</li>
-          <li>Medellín, Antioquia</li>
+          <li className="flex items-center gap-2">
+            <Phone className="w-4 h-4 text-primary" />
+            <a href="tel:+573207330859" className="hover:text-white">+57 320 733 0859</a>
+          </li>
+          <li className="flex items-center gap-2">
+            <Mail className="w-4 h-4 text-primary" />
+            <a href="mailto:thoperPro@gmail.com" className="hover:text-white">thoperPro@gmail.com</a>
+          </li>
+          <li className="flex items-center gap-2">
+            <MapPin className="w-4 h-4 text-primary" />
+            <span>Puerto Boyacá, Boyacá</span>
+          </li>
         </ul>
       </div>
     </div>
     <div className="max-w-7xl mx-auto w-full mt-10 pt-8 border-t border-white/5 text-center text-[8px] uppercase tracking-[0.5em] text-white/10">
-      © {new Date().getFullYear()} Topher Producciones - Medellín, Colombia.
+      © {new Date().getFullYear()} Topher Producciones.
     </div>
   </footer>
 );
@@ -252,6 +263,7 @@ const App = () => {
           <Route path="/portafolio" element={<div className="min-h-screen w-full py-12"><Portfolio /></div>} />
           <Route path="/solicitud" element={<PrivateRoute><div className="min-h-screen w-full py-12"><BookingForm /></div></PrivateRoute>} />
           <Route path="/contacto" element={<div className="min-h-screen w-full"><Contacto /></div>} />
+          <Route path="/privacidad" element={<Privacidad />} />
           
           <Route path="/login" element={<Login />} />
           <Route path="/registro" element={<Register />} />

@@ -1,6 +1,7 @@
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.throttling import ScopedRateThrottle
 from .models import Notificacion, ContactoMensaje
 from .serializers import NotificacionSerializer, ContactoMensajeSerializer
 
@@ -16,6 +17,12 @@ class NotificacionViewSet(viewsets.ModelViewSet):
 class ContactoMensajeViewSet(viewsets.ModelViewSet):
     queryset = ContactoMensaje.objects.all()
     serializer_class = ContactoMensajeSerializer
+    throttle_scope = 'contacto'
+
+    def get_throttles(self):
+        if self.action == 'create':
+            return [ScopedRateThrottle()]
+        return []
     
     def get_permissions(self):
         if self.action == 'create':

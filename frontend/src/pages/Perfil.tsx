@@ -168,7 +168,7 @@ const Perfil = () => {
                 value={formData.telefono}
                 onChange={handleChange}
                 className="w-full bg-background border border-white/10 rounded-xl px-4 py-3.5 text-white placeholder:text-white/30 focus:outline-none focus:border-primary transition-colors"
-                placeholder="+57 300 000 0000"
+                placeholder="Tu teléfono de contacto"
               />
             </div>
 

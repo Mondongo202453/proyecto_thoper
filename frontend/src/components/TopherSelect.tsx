@@ -7,6 +7,7 @@ export interface TopherSelectOption {
 }
 
 interface TopherSelectProps {
+  id?: string;
   value: string;
   options: TopherSelectOption[];
   onChange: (value: string) => void;
@@ -18,7 +19,7 @@ interface TopherSelectProps {
 }
 
 const TopherSelect: React.FC<TopherSelectProps> = ({
-  value, options, onChange, placeholder = 'Seleccionar...', disabled = false, className = '', compact = false,
+  id, value, options, onChange, placeholder = 'Seleccionar...', disabled = false, className = '', compact = false, required = false,
 }) => {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -41,11 +42,13 @@ const TopherSelect: React.FC<TopherSelectProps> = ({
   return (
     <div ref={rootRef} className={`topher-select-root ${compact ? 'topher-select-compact' : ''} ${className}`}>
       <button
+        id={id}
         type="button"
         disabled={disabled}
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-controls={listboxId}
+        aria-required={required}
         className="topher-select-trigger"
         onClick={() => setOpen((current) => !current)}
       >

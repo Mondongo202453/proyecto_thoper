@@ -101,9 +101,8 @@ def generar_pdf_reserva(reserva, tipo_doc="cotizacion"):
 
     company = Paragraph(
         "<b>Topher Producciones</b><br/>"
-        "NIT: 123.456.789-0<br/>"
-        "Calle Falsa 123, Medellín, Antioquia<br/>"
-        "Tel: +57 300 000 0000 | contacto@topher.com",
+        "Puerto Boyacá, Boyacá<br/>"
+        "Tel: +57 320 733 0859 | thoperPro@gmail.com",
         small,
     )
     header = Table([[logo, company]], colWidths=[2.8 * inch, 4.0 * inch])

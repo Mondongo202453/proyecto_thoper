@@ -1,8 +1,31 @@
 # Despliegue del backend en Railway
 
-La base `thoper_db2` ya fue importada y verificada en Railway. El acceso TCP
-público temporal se retiró; el backend debe conectarse por la red privada de
-Railway.
+## Compatibilidad y estado del despliegue
+
+Para continuar el desarrollo local con la base de XAMPP (MariaDB 10.4.32), el
+backend se mantiene temporalmente en Django 4.2.30, el último parche disponible
+de la serie 4.2. Esta serie ya no recibe soporte de seguridad y es solo para
+trabajo local; no debe considerarse una versión lista para un nuevo despliegue.
+Antes de publicar, actualiza Django a una versión con soporte y compatible con
+la base elegida; la serie Django 5.2 requiere MariaDB 10.5 o superior o MySQL
+8.0.11 o superior.
+
+El volcado `database/topher_db.sql` también fue generado con MariaDB 10.4.32.
+Antes de cambiar versiones, confirma el motor y la versión reales, crea un
+respaldo y comprueba que se pueda restaurar en un entorno de pruebas. No
+actualices la base ni ejecutes migraciones de producción hasta validar la
+compatibilidad y el esquema heredado.
+
+Esta guía describe la configuración prevista para Railway, no el estado actual
+de los servicios. Confirma en el panel que el servicio de aplicación y la base
+estén activos y que los datos y respaldos necesarios estén disponibles antes
+de iniciar un despliegue. Usa la red privada del proveedor para la conexión
+entre el backend y la base de datos.
+
+Antes de publicar, la organización responsable debe revisar el aviso de
+privacidad de la aplicación y confirmar la identidad legal del responsable, los
+plazos de conservación y las condiciones aplicables a los proveedores que
+procesan datos.
 
 ## Servicio web
 
@@ -37,14 +60,14 @@ Railway.
    repositorio ni uses `MYSQL_PUBLIC_URL`.
 4. Añade un volumen al servicio Django, montado en `/app/media`. Esto conserva
    las imágenes, videos y PDFs entre despliegues.
-5. En **Settings → Deploy**, configura el comando pre-deploy:
+5. No configures todavía migraciones automáticas como comando pre-deploy.
+   Algunas tablas dependen del esquema heredado y usan `managed=False`.
+   Primero compara las migraciones pendientes con el esquema real, restaura un
+   respaldo en una copia de pruebas y valida allí el plan. Solo después de
+   aprobarlo y contar con un respaldo restaurable debe definirse el comando de
+   migración para producción. El `Procfile` recopila los estáticos e inicia
+   Gunicorn usando el puerto que Railway proporciona.
 
-   ```text
-   python manage.py migrate --noinput
-   ```
-
-   El `Procfile` recopila los estáticos e inicia Gunicorn usando el puerto que
-   Railway proporciona.
 6. Genera el dominio público del servicio web y confirma que `RAILWAY_PUBLIC_DOMAIN`
    coincide con el host asignado. La configuración lo incorpora a `ALLOWED_HOSTS`.
 7. Revisa los logs del despliegue y confirma que `/` responde con el mensaje de
