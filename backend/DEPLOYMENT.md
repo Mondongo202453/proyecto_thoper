@@ -70,20 +70,31 @@ procesan datos.
 
 6. Genera el dominio público del servicio web y confirma que `RAILWAY_PUBLIC_DOMAIN`
    coincide con el host asignado. La configuración lo incorpora a `ALLOWED_HOSTS`.
-7. Revisa los logs del despliegue y confirma que `/` responde con el mensaje de
-   API en lugar de un error. No publiques el frontend hasta configurar su URL
-   en `CORS_ALLOWED_ORIGINS` y `FRONTEND_URL`.
+7. Revisa los logs del despliegue y confirma que `/` redirige al inicio del
+   frontend definido en `FRONTEND_URL`. No publiques el frontend hasta
+   configurar su URL en `CORS_ALLOWED_ORIGINS` y `FRONTEND_URL`.
 
 El servidor solo publica los archivos bajo `media/uploads/` que usa el
 portafolio. Los PDFs de cotizaciones deben seguir descargándose por la acción
 autenticada de documentos, no mediante una URL pública de medios.
 Configura el SMTP antes de habilitar recuperación de contraseña; en producción
-Django usa SMTP para evitar que los enlaces de recuperación terminen en los logs.
+Django usa SMTP para evitar que los enlaces de recuperación o las respuestas a
+mensajes de visitantes o avisos de asignación al personal terminen en los logs.
 
 ## Desarrollo local
 
 Copia `.env.example` a `.env` solo para desarrollo local y reemplaza los valores
 de ejemplo. No uses el `.env` local ni credenciales reales en Railway.
+
+### Mensajes de contacto
+
+Los mensajes enviados sin iniciar sesión aparecen en la bandeja del administrador.
+Al responder, Django envía un correo al remitente usando el backend configurado.
+Las respuestas a clientes con cuenta se entregan como notificaciones dentro de
+la aplicación. En desarrollo, el backend de correo predeterminado es la consola:
+los correos se muestran en la terminal de Django y no llegan a una bandeja real.
+Configura un SMTP válido para probar entregas reales; las pruebas automatizadas
+usan un backend en memoria y no envían correos externos.
 
 ### Pruebas de pago sin cobros
 

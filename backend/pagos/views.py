@@ -1,18 +1,21 @@
 import hashlib
 import hmac
 import secrets
+import datetime
 from decimal import Decimal, ROUND_HALF_UP
 from urllib.parse import urlencode
 
 from django.conf import settings
 from django.db import transaction
+from django.db.models import Case, DecimalField, Sum, Value, When
+from django.utils import timezone
 from rest_framework import permissions, status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 
 from .models import Pago
 from .serializers import PagoSerializer
-from reservas.models import Reserva
+from reservas.models import Reserva, ReservationService
 
 
 def _total_reserva(reserva):
@@ -53,6 +56,46 @@ def _checksum_evento_valido(transaction_data, properties, timestamp, checksum, s
     return hmac.compare_digest(expected, checksum.lower())
 
 
+def _meses_ultimos_doce(reference_date):
+    mes = reference_date.replace(day=1)
+    meses = [mes]
+    for _ in range(11):
+        mes = (mes - datetime.timedelta(days=1)).replace(day=1)
+        meses.append(mes)
+    return list(reversed(meses))
+
+
+def _sumar_por_mes(queryset, campo_fecha, campo_monto, meses):
+    inicio = timezone.make_aware(datetime.datetime.combine(meses[0], datetime.time.min))
+    siguiente_mes = (meses[-1] + datetime.timedelta(days=32)).replace(day=1)
+    fin = timezone.make_aware(datetime.datetime.combine(siguiente_mes, datetime.time.min))
+    expresiones = {}
+
+    for mes in meses:
+        inicio_mes = timezone.make_aware(datetime.datetime.combine(mes, datetime.time.min))
+        siguiente = (mes + datetime.timedelta(days=32)).replace(day=1)
+        fin_mes = timezone.make_aware(datetime.datetime.combine(siguiente, datetime.time.min))
+        clave = f'mes_{mes:%Y_%m}'
+        expresiones[clave] = Sum(Case(
+            When(**{
+                f'{campo_fecha}__gte': inicio_mes,
+                f'{campo_fecha}__lt': fin_mes,
+                'then': campo_monto,
+            }),
+            default=Value(Decimal('0')),
+            output_field=DecimalField(max_digits=12, decimal_places=2),
+        ))
+
+    totales = queryset.filter(**{
+        f'{campo_fecha}__gte': inicio,
+        f'{campo_fecha}__lt': fin,
+    }).aggregate(**expresiones)
+    return {
+        mes.strftime('%Y-%m'): totales.get(f'mes_{mes:%Y_%m}') or Decimal('0')
+        for mes in meses
+    }
+
+
 @api_view(['GET'])
 @permission_classes([permissions.IsAuthenticated])
 def configuracion_pagos(request):
@@ -60,6 +103,38 @@ def configuracion_pagos(request):
         'modo': settings.PAYMENT_MODE,
         'habilitado': settings.PAYMENT_MODE in {'mock', 'wompi_sandbox'},
         'simulacion_local': settings.PAYMENT_MODE == 'mock',
+    })
+
+
+@api_view(['GET'])
+@permission_classes([permissions.IsAdminUser])
+def resumen_ingresos(request):
+    meses = _meses_ultimos_doce(timezone.localdate())
+    valores_por_mes = _sumar_por_mes(
+        ReservationService.objects.exclude(reserva__status_id=7),
+        'reserva__creado_en',
+        'precio_calculado',
+        meses,
+    )
+    pagos_aprobados_por_mes = _sumar_por_mes(
+        Pago.objects.filter(estado='APPROVED'),
+        'actualizado_en',
+        'monto',
+        meses,
+    )
+    datos = [
+        {
+            'mes': mes.strftime('%Y-%m'),
+            'valor_reservas': format(valores_por_mes.get(mes.strftime('%Y-%m'), Decimal('0')), 'f'),
+            'pagos_aprobados': format(pagos_aprobados_por_mes.get(mes.strftime('%Y-%m'), Decimal('0')), 'f'),
+        }
+        for mes in meses
+    ]
+
+    return Response({
+        'desde': meses[0].strftime('%Y-%m'),
+        'hasta': meses[-1].strftime('%Y-%m'),
+        'datos': datos,
     })
 
 

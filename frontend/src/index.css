@@ -570,7 +570,7 @@ svg {
   }
 
   .glass-card {
-    @apply relative overflow-hidden bg-[var(--color-panel)]/80 backdrop-blur-xl border border-[var(--color-stroke)] rounded-[1.5rem] p-6 hover:border-[var(--color-primary)]/40 transition-all duration-500 shadow-[0_24px_80px_rgba(0,0,0,0.42)];
+    @apply relative overflow-hidden bg-[var(--color-panel)]/90 border border-[var(--color-stroke)] rounded-[1.5rem] p-6 hover:border-[var(--color-primary)]/40 transition-all duration-300 shadow-[0_8px_24px_rgba(0,0,0,0.28)];
   }
 
   .glass-card::before {
@@ -730,6 +730,106 @@ svg {
       transition: none;
     }
 
+  }
+}
+
+/* Admin workspace */
+.admin-shell {
+  background:
+    radial-gradient(ellipse at 82% 0%, rgba(255, 138, 0, 0.055), transparent 34rem),
+    #090a0d;
+}
+
+.admin-sidebar {
+  border-right: 1px solid rgba(255, 255, 255, 0.07);
+  background: linear-gradient(180deg, #111318 0%, #0c0d10 60%, #0a0b0e 100%);
+  box-shadow: 12px 0 42px rgba(0, 0, 0, 0.16);
+}
+
+.admin-brand-mark {
+  border: 1px solid rgba(255, 138, 0, 0.18);
+  background: linear-gradient(145deg, rgba(255, 138, 0, 0.16), rgba(255, 138, 0, 0.045));
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.08);
+}
+
+.admin-navigation {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.12) transparent;
+}
+
+.admin-nav-link {
+  border: 1px solid transparent;
+  transition: color 180ms ease, background-color 180ms ease, border-color 180ms ease, transform 180ms ease;
+}
+
+.admin-nav-link:hover {
+  transform: translateX(2px);
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.admin-nav-link.is-active {
+  border-color: rgba(255, 138, 0, 0.14);
+  background: linear-gradient(100deg, rgba(255, 138, 0, 0.14), rgba(255, 138, 0, 0.045));
+  box-shadow: inset 2px 0 rgba(255, 138, 0, 0.9);
+}
+
+.admin-main {
+  background:
+    radial-gradient(ellipse at 90% 14%, rgba(255, 255, 255, 0.018), transparent 30rem),
+    #0b0c0f;
+}
+
+.admin-topbar {
+  background: rgba(13, 14, 17, 0.82);
+}
+
+.admin-content {
+  scrollbar-gutter: stable;
+}
+
+.admin-shell .glass-card {
+  border-color: rgba(255, 255, 255, 0.075);
+  border-radius: 1.25rem;
+  background-color: rgba(20, 22, 27, 0.82);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.16);
+}
+
+.admin-shell .glass-card::before {
+  opacity: 0.52;
+}
+
+.admin-hero {
+  background:
+    linear-gradient(115deg, rgba(22, 23, 27, 0.96), rgba(16, 17, 20, 0.76)),
+    #141519;
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.19), inset 0 1px rgba(255, 255, 255, 0.04);
+}
+
+.admin-stat-card {
+  min-height: 9.5rem;
+  transition: transform 200ms ease, border-color 200ms ease, box-shadow 200ms ease;
+}
+
+.admin-stat-card:hover {
+  transform: translateY(-3px);
+  border-color: rgba(255, 255, 255, 0.14);
+  box-shadow: 0 18px 38px rgba(0, 0, 0, 0.24);
+}
+
+.admin-chart-card {
+  background-image: linear-gradient(145deg, rgba(255, 255, 255, 0.018), transparent 54%);
+}
+
+@media (max-width: 767px) {
+  .admin-sidebar {
+    box-shadow: 24px 0 64px rgba(0, 0, 0, 0.42);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .admin-nav-link,
+  .admin-stat-card {
+    transition: none;
   }
 }
 

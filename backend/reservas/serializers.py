@@ -1,5 +1,8 @@
 from rest_framework import serializers
+from django.db import transaction
+from django.utils import timezone
 from .models import Reserva, ReservationService
+from .scheduling import hay_conflicto_horario, reservas_activas_en_fecha
 from servicios.models import Tarifa
 from usuarios.models import Status, Usuario
 
@@ -13,6 +16,11 @@ class ReservationServiceSerializer(serializers.ModelSerializer):
 
 class ReservaSerializer(serializers.ModelSerializer):
     servicios_contratados = ReservationServiceSerializer(many=True, required=False)
+    duracion_evento = serializers.ChoiceField(
+        choices=(1, 2, 3),
+        required=False,
+        write_only=True,
+    )
     # Make status optional on input; default will be applied in create() if not provided
     status = serializers.PrimaryKeyRelatedField(queryset=Status.objects.all(), required=False, allow_null=True)
     status_id = serializers.IntegerField(read_only=True)
@@ -32,43 +40,73 @@ class ReservaSerializer(serializers.ModelSerializer):
         servicios_data = request.data.get('servicios_contratados', [])
         if not servicios_data:
             raise serializers.ValidationError("Debe añadir al menos un servicio.")
+
+        duracion_evento = validated_data.pop('duracion_evento', None)
+        if duracion_evento is not None:
+            duracion_evento = Decimal(str(duracion_evento))
         
-        # Generar número de solicitud único (ej: TOPHER-2026-001)
         import datetime
-        count = Reserva.objects.filter(creado_en__year=datetime.date.today().year).count() + 1
-        validated_data['numero_solicitud'] = f"TOPHER-{datetime.date.today().year}-{count:03d}"
         
-        # Default status: Pendiente (ID 4)
-        if 'status' not in validated_data:
+        # Customer-created requests always start pending.
+        if getattr(request.user, 'role_id', None) != 1 or 'status' not in validated_data:
             validated_data['status'] = Status.objects.get(id=4)
         validated_data['usuario'] = request.user
         
         # Eliminar servicios_contratados si viene en validated_data para evitar error de asignacion directa
         validated_data.pop('servicios_contratados', None)
-        
-        reserva = Reserva.objects.create(**validated_data)
-        
-        total_acumulado = 0
-        for item in servicios_data:
-            if not item.get('servicio') or not item.get('tarifa'):
-                raise serializers.ValidationError("Cada servicio debe tener servicio y tarifa seleccionados.")
-            
-            tarifa = Tarifa.objects.get(id=item['tarifa'])
-            # RF09: Cálculo automático del precio
-            cantidad = int(item.get('cantidad', 1))
-            duracion = float(item.get('duracion_horas', 1.0))
-            precio = float(tarifa.precio_unitario) * cantidad * duracion
-            total_acumulado += precio
-            
-            ReservationService.objects.create(
-                reserva=reserva,
-                servicio_id=item['servicio'],
-                tarifa_id=item['tarifa'],
-                cantidad=cantidad,
-                duracion_horas=duracion,
-                precio_calculado=precio,
-                notas=item.get('notas', '')
+
+        fecha_evento = validated_data['fecha_evento']
+        hora_evento = validated_data['hora_evento']
+        fecha_hora_evento = datetime.datetime.combine(fecha_evento, hora_evento)
+        if fecha_hora_evento <= timezone.localtime().replace(tzinfo=None):
+            raise serializers.ValidationError({
+                'fecha_evento': 'La fecha y hora del evento deben ser futuras.'
+            })
+        if duracion_evento is not None:
+            duracion_para_validar = duracion_evento
+        else:
+            duracion_para_validar = max(
+                (Decimal(str(item.get('duracion_horas', 1))) for item in servicios_data),
+                default=Decimal('1'),
             )
+
+        with transaction.atomic():
+            Status.objects.select_for_update().get(id=4)
+            year = timezone.localdate().year
+            count = Reserva.objects.filter(creado_en__year=year).count() + 1
+            validated_data['numero_solicitud'] = f"TOPHER-{year}-{count:03d}"
+            reservas_del_dia = reservas_activas_en_fecha(fecha_evento, for_update=True)
+            if hay_conflicto_horario(
+                fecha_evento,
+                hora_evento,
+                duracion_para_validar,
+                reservas_del_dia,
+            ):
+                raise serializers.ValidationError({
+                    'hora_evento': 'Ese horario se cruza con otra reserva activa. Elige otra hora.'
+                })
+
+            reserva = Reserva.objects.create(**validated_data)
+            total_acumulado = Decimal('0')
+            for item in servicios_data:
+                if not item.get('servicio') or not item.get('tarifa'):
+                    raise serializers.ValidationError("Cada servicio debe tener servicio y tarifa seleccionados.")
+
+                tarifa = Tarifa.objects.get(id=item['tarifa'])
+                cantidad = int(item.get('cantidad', 1))
+                duracion = duracion_evento or Decimal(str(item.get('duracion_horas', 1.0)))
+                precio = Decimal(str(tarifa.precio_unitario)) * cantidad * duracion
+                total_acumulado += precio
+
+                ReservationService.objects.create(
+                    reserva=reserva,
+                    servicio_id=item['servicio'],
+                    tarifa_id=item['tarifa'],
+                    cantidad=cantidad,
+                    duracion_horas=duracion,
+                    precio_calculado=precio,
+                    notas=item.get('notas', '')
+                )
 
         # Avisar a todos los administradores que hay una nueva solicitud.
         # Se registra fuera del bloque de correo/PDF para que un fallo de

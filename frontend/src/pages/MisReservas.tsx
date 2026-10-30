@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   Flame, Calendar, MapPin, Users, Clock, FileText, Download,
   AlertTriangle, CheckCircle2, X, Loader2, ArrowLeft, ChevronRight,
-  XCircle, LogOut, Bell, RefreshCw, ChevronDown, Menu, CreditCard
+  XCircle, Bell, RefreshCw, ChevronDown, CreditCard
 } from 'lucide-react';
 import api from '../api/client';
 
@@ -69,14 +70,21 @@ const MisReservas = () => {
   const [syncing, setSyncing] = useState(false);
   const [expandedNotificationId, setExpandedNotificationId] = useState<number | null>(null);
   const [notificationsOpen, setNotificationsOpen] = useState(true);
-  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [pagos, setPagos] = useState<any[]>([]);
   const [paymentLoading, setPaymentLoading] = useState<string | null>(null);
   const [paymentMode, setPaymentMode] = useState<PaymentMode | null>(null);
   const navigate = useNavigate();
 
-  const userRaw = localStorage.getItem('user');
-  const user = userRaw ? JSON.parse(userRaw) : null;
+  useEffect(() => {
+    if (!selected && !cancelTarget) return;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [selected, cancelTarget]);
 
   const showToast = (msg: string, type: 'success' | 'error' = 'success') => {
     setToast({ msg, type });
@@ -260,11 +268,6 @@ const MisReservas = () => {
     }
   };
 
-  const logout = () => {
-    localStorage.clear();
-    navigate('/login');
-  };
-
   const canCancel = (r: Reserva) => [4, 5].includes(r.status_id);
   const totalMonto = (r: Reserva) => {
     return r.servicios_contratados?.reduce((sum: number, s: any) => sum + parseFloat(s.precio_calculado || 0), 0) || 0;
@@ -275,75 +278,6 @@ const MisReservas = () => {
 
   return (
     <div className="min-h-screen bg-background text-white flex flex-col">
-      {/* Header */}
-      <header className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-xl border-b border-white/5 h-20 px-6 flex items-center justify-between">
-        <Link to="/" className="flex flex-col group">
-          <span className="text-2xl font-display font-black tracking-tighter uppercase leading-none group-hover:text-primary transition-colors">Topher</span>
-          <div className="h-[1px] w-full bg-white/20 my-0.5" />
-          <span className="text-[7px] font-medium tracking-[0.7em] uppercase text-white/40">Producciones</span>
-        </Link>
-        <div className="flex items-center gap-2 sm:gap-4">
-          <span className="hidden md:block text-xs text-white/40">
-            Hola, <strong className="text-white">{user?.nombre_completo}</strong>
-          </span>
-          <button
-            type="button"
-            className="md:hidden rounded-lg p-2 text-white/70 transition-colors hover:bg-white/10 hover:text-white"
-            onClick={() => setMobileNavOpen((open) => !open)}
-            aria-label={mobileNavOpen ? 'Cerrar barra de navegación' : 'Abrir barra de navegación'}
-            aria-expanded={mobileNavOpen}
-            aria-controls="client-mobile-navigation"
-          >
-            {mobileNavOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-          </button>
-          <button onClick={logout} className="logout-button" aria-label="Salir">
-            <span className="logout-icon"><LogOut className="w-4 h-4" /></span>
-            <span className="logout-label">Salir</span>
-          </button>
-        </div>
-        {mobileNavOpen && (
-          <nav
-            id="client-mobile-navigation"
-            className="fixed inset-0 z-[60] flex min-h-dvh flex-col bg-[#060606] px-7 pb-10 pt-5 shadow-[0_20px_50px_rgba(0,0,0,0.65)] md:hidden"
-            aria-label="Navegación principal"
-          >
-            <div className="flex items-start justify-between border-b border-white/10 pb-5">
-              <Link to="/" onClick={() => setMobileNavOpen(false)} className="flex flex-col leading-none">
-                <span className="text-2xl font-display font-black tracking-tighter uppercase text-white">Topher</span>
-                <span className="mt-1 text-[7px] font-medium tracking-[0.7em] uppercase text-white/45">Producciones</span>
-              </Link>
-              <button
-                type="button"
-                onClick={() => setMobileNavOpen(false)}
-                className="rounded-lg p-1 text-white transition-colors hover:bg-white/10 hover:text-primary"
-                aria-label="Cerrar barra de navegación"
-              >
-                <X className="h-6 w-6" />
-              </button>
-            </div>
-            <div className="flex flex-col gap-7 pt-9">
-              {[
-                ['Inicio', '/'],
-                ['Servicios', '/servicios'],
-                ['Portafolio', '/portafolio'],
-                ['Solicitud', '/solicitud'],
-              ].map(([label, path], index) => (
-                <Link
-                  key={path}
-                  to={path}
-                  onClick={() => setMobileNavOpen(false)}
-                  className={`text-left text-xl font-bold uppercase tracking-[0.12em] transition-colors hover:text-primary ${
-                    index === 3 ? 'text-primary' : 'text-white'
-                  }`}
-                >
-                  {label}
-                </Link>
-              ))}
-            </div>
-          </nav>
-        )}
-      </header>
-
       <main className="flex-1 pt-28 pb-16 px-4 sm:px-6">
         <div className="max-w-5xl mx-auto">
           <div className="mb-10">
@@ -513,19 +447,30 @@ const MisReservas = () => {
 
       {/* ── MODAL DE DETALLE DE RESERVA ── */}
       {selected && (
-        <div className="fixed inset-0 z-[100] bg-background/80 backdrop-blur-sm flex items-start justify-center p-6 overflow-y-auto">
-          <div className="bg-surface border border-white/10 w-full max-w-2xl rounded-2xl shadow-2xl my-8 animate-fade-in-scale">
+        createPortal(
+        <div
+          className="fixed inset-0 z-[100] grid min-h-dvh place-items-center overflow-y-auto bg-background/80 p-3 backdrop-blur-sm sm:p-6"
+          onClick={(event) => {
+            if (event.target === event.currentTarget) setSelected(null);
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="reservation-detail-title"
+            className="my-auto flex max-h-[calc(100dvh-1.5rem)] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-white/10 bg-surface shadow-2xl sm:max-h-[calc(100dvh-3rem)] animate-fade-in-scale"
+          >
             <div className="p-6 border-b border-white/5 flex items-center justify-between">
               <div>
-                <h3 className="text-xl font-display font-black uppercase tracking-tight">{selected.nombre_evento}</h3>
+                <h3 id="reservation-detail-title" className="text-xl font-display font-black uppercase tracking-tight">{selected.nombre_evento}</h3>
                 <span className="text-xs text-primary">{selected.numero_solicitud}</span>
               </div>
-              <button onClick={() => setSelected(null)} className="p-2 hover:bg-white/5 rounded-xl transition-all">
+              <button type="button" aria-label="Cerrar detalle de reserva" onClick={() => setSelected(null)} className="p-2 hover:bg-white/5 rounded-xl transition-all">
                 <X className="w-5 h-5 text-white/40" />
               </button>
             </div>
 
-            <div className="p-6 space-y-6">
+            <div className="min-h-0 overflow-y-auto overscroll-contain p-6 space-y-6">
               {/* Estado */}
               <div className="flex items-center gap-3">
                 <span className={`text-[9px] font-bold uppercase tracking-widest px-3 py-1.5 rounded-full border ${STATUS_COLORS[selected.status_id]}`}>
@@ -709,12 +654,15 @@ const MisReservas = () => {
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
+        )
       )}
 
       {/* ── MODAL DE CANCELACIÓN ── */}
       {cancelTarget && (
-        <div className="fixed inset-0 z-[200] bg-background/80 backdrop-blur-sm flex items-center justify-center p-6">
+        createPortal(
+        <div className="fixed inset-0 z-[200] grid min-h-dvh place-items-center overflow-y-auto bg-background/80 p-3 backdrop-blur-sm sm:p-6">
           <div className="bg-surface border border-white/10 w-full max-w-md p-8 rounded-2xl shadow-2xl animate-fade-in-scale">
             <div className="flex items-center justify-center w-12 h-12 bg-red-500/20 text-red-500 rounded-full mb-6 mx-auto">
               <AlertTriangle className="w-6 h-6" />
@@ -742,7 +690,9 @@ const MisReservas = () => {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
+        )
       )}
 
       {/* Toast */}

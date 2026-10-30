@@ -1,7 +1,8 @@
 import hashlib
+import datetime
 from decimal import Decimal
 from types import SimpleNamespace
-from unittest.mock import MagicMock, patch
+from unittest.mock import ANY, MagicMock, patch
 
 from django.test import SimpleTestCase, override_settings
 from rest_framework.test import APIRequestFactory, force_authenticate
@@ -10,6 +11,7 @@ from pagos.views import (
     _monto_a_cobrar,
     configuracion_pagos,
     crear_pago,
+    resumen_ingresos,
     simular_pago,
     wompi_webhook,
 )
@@ -67,6 +69,62 @@ class WompiEventSignatureTests(SimpleTestCase):
                 secret,
             )
         )
+
+
+class RevenueSummaryTests(SimpleTestCase):
+    def setUp(self):
+        self.factory = APIRequestFactory()
+
+    def test_admin_gets_last_twelve_months_and_only_approved_payments(self):
+        fecha_referencia = datetime.date(2026, 10, 29)
+        servicios_manager = MagicMock()
+        servicios_qs = MagicMock()
+        servicios_manager.exclude.return_value = servicios_qs
+        servicios_qs.filter.return_value = servicios_qs
+        servicios_qs.aggregate.return_value = {'mes_2026_10': Decimal('350000.00')}
+
+        pagos_manager = MagicMock()
+        pagos_qs = MagicMock()
+        pagos_manager.filter.return_value = pagos_qs
+        pagos_qs.filter.return_value = pagos_qs
+        pagos_qs.aggregate.return_value = {'mes_2026_10': Decimal('175000.00')}
+        admin = SimpleNamespace(is_authenticated=True, is_staff=True)
+        request = self.factory.get('/api/pagos/resumen-ingresos/')
+        force_authenticate(request, user=admin)
+
+        with (
+            patch('pagos.views.timezone.localdate', return_value=fecha_referencia),
+            patch('pagos.views.ReservationService.objects', servicios_manager),
+            patch('pagos.views.Pago.objects', pagos_manager),
+        ):
+            response = resumen_ingresos(request)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['desde'], '2025-11')
+        self.assertEqual(response.data['hasta'], '2026-10')
+        self.assertEqual(len(response.data['datos']), 12)
+        self.assertEqual(response.data['datos'][-1], {
+            'mes': '2026-10',
+            'valor_reservas': '350000.00',
+            'pagos_aprobados': '175000.00',
+        })
+        pagos_manager.filter.assert_called_once_with(estado='APPROVED')
+        pagos_qs.filter.assert_called_once_with(
+            actualizado_en__gte=ANY,
+            actualizado_en__lt=ANY,
+        )
+        servicios_manager.exclude.assert_called_once_with(reserva__status_id=7)
+
+    def test_non_admin_cannot_read_revenue_summary(self):
+        user = SimpleNamespace(is_authenticated=True, is_staff=False)
+        request = self.factory.get('/api/pagos/resumen-ingresos/')
+        force_authenticate(request, user=user)
+
+        with patch('pagos.views.Pago.objects') as pagos_manager:
+            response = resumen_ingresos(request)
+
+        self.assertEqual(response.status_code, 403)
+        pagos_manager.filter.assert_not_called()
 
 
 class LocalPaymentSimulationTests(SimpleTestCase):

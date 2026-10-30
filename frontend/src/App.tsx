@@ -1,20 +1,20 @@
 import React from 'react';
 import { Routes, Route, Link, useLocation } from 'react-router-dom';
 import { Flame, Menu, X, ChevronRight, Sparkles, LogOut, Mail, MapPin, Phone } from 'lucide-react';
-
-import Services from './components/Services';
-import BookingForm from './components/BookingForm';
-import Portfolio from './components/Portfolio';
-import Login from './pages/Login';
-import Register from './pages/Register';
-import RecuperarPassword from './pages/RecuperarPassword';
-import Contacto from './pages/Contacto';
-import Privacidad from './pages/Privacidad';
-import MisReservas from './pages/MisReservas';
-import PanelStaff from './pages/PanelStaff';
-import Dashboard from './pages/Dashboard';
 import PrivateRoute from './components/PrivateRoute';
-import Perfil from './pages/Perfil';
+
+const Services = React.lazy(() => import('./components/Services'));
+const BookingForm = React.lazy(() => import('./components/BookingForm'));
+const Portfolio = React.lazy(() => import('./components/Portfolio'));
+const Login = React.lazy(() => import('./pages/Login'));
+const Register = React.lazy(() => import('./pages/Register'));
+const RecuperarPassword = React.lazy(() => import('./pages/RecuperarPassword'));
+const Contacto = React.lazy(() => import('./pages/Contacto'));
+const Privacidad = React.lazy(() => import('./pages/Privacidad'));
+const MisReservas = React.lazy(() => import('./pages/MisReservas'));
+const PanelStaff = React.lazy(() => import('./pages/PanelStaff'));
+const Dashboard = React.lazy(() => import('./pages/Dashboard'));
+const Perfil = React.lazy(() => import('./pages/Perfil'));
 
 // --- COMPONENTS ---
 
@@ -103,13 +103,13 @@ const Navbar = () => {
 
   const isActive = (path: string) => location.pathname === path ? 'text-primary' : 'text-white/60';
   const accountLink = roleId === 1
-    ? { href: '/dashboard', label: 'Dashboard' }
+    ? { href: '/dashboard', label: 'Administrador' }
     : roleId === 3
       ? { href: '/panel-staff', label: 'Panel de trabajo' }
       : { href: '/mis-reservas', label: 'Mis reservas y avisos' };
 
   return (
-    <nav className="fixed top-0 left-0 right-0 z-[100] isolate bg-background/95 backdrop-blur-2xl border-b border-white/10 shadow-[0_10px_40px_rgba(0,0,0,0.25)]">
+    <nav className="fixed top-0 left-0 right-0 z-[100] isolate bg-background/95 border-b border-white/10 shadow-[0_10px_40px_rgba(0,0,0,0.25)]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 h-20 md:h-24 flex items-center justify-between">
         <Link to="/" className="flex flex-col group">
           <span className="text-3xl font-display font-black tracking-tighter uppercase leading-none group-hover:text-primary transition-colors text-3d">
@@ -195,7 +195,7 @@ const Hero = () => {
   return (
     <section
       className="relative min-h-screen flex items-center justify-center overflow-hidden bg-cover bg-center"
-      style={{ backgroundImage: "url('/img/fondo-de-pagina.png')" }}
+      style={{ backgroundImage: "url('/img/fondo-de-pagina.webp')" }}
     >
       <div className="absolute inset-0 bg-black/65" />
       <div className="absolute inset-0 z-0 bg-[radial-gradient(circle_at_top,_rgba(255,138,0,0.24),transparent_30%)]" />
@@ -251,59 +251,61 @@ const App = () => {
   const isStaffPanel = location.pathname.startsWith('/panel-staff');
   const isMisReservas = location.pathname.startsWith('/mis-reservas');
   
-  const hideLayout = isDashboard || isStaffPanel || isMisReservas;
+  const hideLayout = isDashboard || isStaffPanel;
+  const hideFooter = hideLayout || isMisReservas;
 
   return (
     <div className="min-h-screen bg-background text-white flex flex-col page-visible">
       {!hideLayout && <Navbar />}
-      <main className={`flex-grow ${hideLayout ? '' : 'pt-24'}`}>
-        <Routes>
-          <Route path="/" element={<Hero />} />
-          <Route path="/servicios" element={<div className="min-h-screen w-full py-12"><Services /></div>} />
-          <Route path="/portafolio" element={<div className="min-h-screen w-full py-12"><Portfolio /></div>} />
-          <Route path="/solicitud" element={<PrivateRoute><div className="min-h-screen w-full py-12"><BookingForm /></div></PrivateRoute>} />
-          <Route path="/contacto" element={<div className="min-h-screen w-full"><Contacto /></div>} />
-          <Route path="/privacidad" element={<Privacidad />} />
-          
-          <Route path="/login" element={<Login />} />
-          <Route path="/registro" element={<Register />} />
-          <Route path="/recuperar-password" element={<RecuperarPassword />} />
+      <main className={`flex-grow ${hideLayout || isMisReservas ? '' : 'pt-24'}`}>
+        <React.Suspense fallback={<div className="flex min-h-[50vh] items-center justify-center text-sm text-white/50">Cargando página...</div>}>
+          <Routes>
+            <Route path="/" element={<Hero />} />
+            <Route path="/servicios" element={<div className="min-h-screen w-full py-12"><Services /></div>} />
+            <Route path="/portafolio" element={<div className="min-h-screen w-full py-12"><Portfolio /></div>} />
+            <Route path="/solicitud" element={<PrivateRoute><div className="min-h-screen w-full py-12"><BookingForm /></div></PrivateRoute>} />
+            <Route path="/contacto" element={<div className="min-h-screen w-full"><Contacto /></div>} />
+            <Route path="/privacidad" element={<Privacidad />} />
+
+            <Route path="/login" element={<Login />} />
+            <Route path="/registro" element={<Register />} />
+            <Route path="/recuperar-password" element={<RecuperarPassword />} />
             <Route path="/perfil" element={<PrivateRoute><Perfil /></PrivateRoute>} />
-          
-          {/* Rutas protegidas por Rol */}
-          <Route path="/mis-reservas/*" element={
-            <PrivateRoute allowedRoles={[2]}>
-              <MisReservas />
-            </PrivateRoute>
-          } />
-          
-          <Route path="/panel-staff/*" element={
-            <PrivateRoute allowedRoles={[3]}>
-              <PanelStaff />
-            </PrivateRoute>
-          } />
 
-          <Route path="/dashboard/*" element={
-            <PrivateRoute allowedRoles={[1]}>
-              <Dashboard />
-            </PrivateRoute>
-          } />
+            <Route path="/mis-reservas/*" element={
+              <PrivateRoute allowedRoles={[2]}>
+                <MisReservas />
+              </PrivateRoute>
+            } />
 
-          <Route path="*" element={
-            <div className="page-shell bg-background text-white">
-              <div className="page-inner max-w-2xl text-center">
-                <div className="panel-surface p-12">
-                  <span className="page-eyebrow">404</span>
-                  <h1 className="page-title text-3xl md:text-4xl mb-4">Página no encontrada</h1>
-                  <p className="page-subtitle mx-auto mb-8">La ruta que buscas no existe o fue movida. Vuelve al inicio para continuar tu experiencia.</p>
-                  <Link to="/" className="btn-primary inline-flex items-center gap-2 px-6 py-3">Volver al inicio</Link>
+            <Route path="/panel-staff/*" element={
+              <PrivateRoute allowedRoles={[3]}>
+                <PanelStaff />
+              </PrivateRoute>
+            } />
+
+            <Route path="/dashboard/*" element={
+              <PrivateRoute allowedRoles={[1]}>
+                <Dashboard />
+              </PrivateRoute>
+            } />
+
+            <Route path="*" element={
+              <div className="page-shell bg-background text-white">
+                <div className="page-inner max-w-2xl text-center">
+                  <div className="panel-surface p-12">
+                    <span className="page-eyebrow">404</span>
+                    <h1 className="page-title text-3xl md:text-4xl mb-4">Página no encontrada</h1>
+                    <p className="page-subtitle mx-auto mb-8">La ruta que buscas no existe o fue movida. Vuelve al inicio para continuar tu experiencia.</p>
+                    <Link to="/" className="btn-primary inline-flex items-center gap-2 px-6 py-3">Volver al inicio</Link>
+                  </div>
                 </div>
               </div>
-            </div>
-          } />
-        </Routes>
+            } />
+          </Routes>
+        </React.Suspense>
       </main>
-      {!hideLayout && <Footer />}
+      {!hideFooter && <Footer />}
     </div>
   );
 };

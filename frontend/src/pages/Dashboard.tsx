@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Routes, Route, Link, useNavigate, useLocation } from 'react-router-dom';
 import {
-  LayoutDashboard, Calendar, Users, Briefcase, Image as ImageIcon,
+  LayoutDashboard, Calendar, CalendarDays, ChevronLeft, ChevronRight, Clock, MapPin, Users, Briefcase, Image as ImageIcon,
   MessageSquare, LogOut, Menu, X, Home, Flame, Sparkles, Search, Filter, Eye, Bell, ChevronDown
 } from 'lucide-react';
 import { Toaster, toast } from 'react-hot-toast';
-import { BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer } from 'recharts';
+import { BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Legend } from 'recharts';
 import api from '../api/client';
 import axios from 'axios';
 import { BACKEND_HOST } from '../api/client';
@@ -30,6 +30,120 @@ const emitDashboardRefresh = () => {
   window.dispatchEvent(new CustomEvent('dashboard-refresh'));
 };
 
+const formatoCOP = new Intl.NumberFormat('es-CO', {
+  style: 'currency',
+  currency: 'COP',
+  maximumFractionDigits: 0,
+});
+
+const DashboardIngresos = () => {
+  const [datos, setDatos] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    const cargarResumen = async () => {
+      try {
+        const res = await api.get('/pagos/resumen-ingresos/');
+        const data = (res.data.datos || []).map((item: any) => ({
+          mes: new Intl.DateTimeFormat('es-CO', { month: 'short', year: '2-digit' })
+            .format(new Date(`${item.mes}-01T12:00:00`)),
+          valor_reservas: Number(item.valor_reservas),
+          pagos_aprobados: Number(item.pagos_aprobados),
+        }));
+        setDatos(data);
+        setError('');
+      } catch (err) {
+        const detail = axios.isAxiosError(err) ? err.response?.data?.detail : null;
+        setError(detail || 'No se pudo cargar el resumen de ingresos.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    cargarResumen();
+    window.addEventListener('dashboard-refresh', cargarResumen);
+    window.addEventListener('reservas-updated', cargarResumen);
+    return () => {
+      window.removeEventListener('dashboard-refresh', cargarResumen);
+      window.removeEventListener('reservas-updated', cargarResumen);
+    };
+  }, []);
+
+  const totalReservado = datos.reduce((total, item) => total + item.valor_reservas, 0);
+  const totalPagosAprobados = datos.reduce((total, item) => total + item.pagos_aprobados, 0);
+
+  return (
+    <section className="glass-card bg-surface/20 border-white/5 p-5 sm:p-6">
+      <div className="mb-5">
+        <span className="page-eyebrow">Últimos 12 meses</span>
+        <h2 className="text-lg font-bold text-white">Ingresos y valor de reservas</h2>
+        <p className="mt-1 text-xs text-white/50">
+          El valor de reservas excluye las canceladas; los pagos aprobados pueden incluir simulaciones locales.
+        </p>
+      </div>
+
+      {loading ? (
+        <div className="py-12 text-center text-sm text-white/60">Cargando resumen financiero...</div>
+      ) : error ? (
+        <div className="rounded-xl border border-red-400/20 bg-red-500/5 p-4 text-sm text-red-200" role="alert">
+          <p>{error}</p>
+          <button
+            type="button"
+            className="mt-3 rounded-lg border border-red-300/30 px-3 py-1.5 text-xs font-semibold hover:bg-red-400/10"
+            onClick={() => {
+              setLoading(true);
+              setError('');
+              window.dispatchEvent(new CustomEvent('dashboard-refresh'));
+            }}
+          >
+            Reintentar
+          </button>
+        </div>
+      ) : (
+        <>
+          <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="rounded-xl border border-primary/15 bg-primary/5 p-4">
+              <p className="text-xs font-medium text-white/55">Valor de reservas no canceladas</p>
+              <p className="mt-1 text-lg font-bold text-white">{formatoCOP.format(totalReservado)}</p>
+            </div>
+            <div className="rounded-xl border border-emerald-400/15 bg-emerald-500/5 p-4">
+              <p className="text-xs font-medium text-white/55">Pagos aprobados registrados</p>
+              <p className="mt-1 text-lg font-bold text-white">{formatoCOP.format(totalPagosAprobados)}</p>
+            </div>
+          </div>
+
+          <div className="h-[300px] w-full sm:h-[340px]" role="img" aria-label="Gráfico mensual de valor de reservas e ingresos recibidos">
+            {datos.length === 0 ? (
+              <p className="py-12 text-center text-sm text-white/50">No hay datos financieros para mostrar.</p>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={datos} margin={{ top: 8, right: 8, left: 0, bottom: 4 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" vertical={false} />
+                  <XAxis dataKey="mes" stroke="rgba(255,255,255,0.5)" tick={{ fill: 'rgba(255,255,255,0.55)', fontSize: 11 }} />
+                  <YAxis
+                    width={58}
+                    stroke="rgba(255,255,255,0.5)"
+                    tick={{ fill: 'rgba(255,255,255,0.55)', fontSize: 10 }}
+                    tickFormatter={(value) => new Intl.NumberFormat('es-CO', { notation: 'compact', maximumFractionDigits: 1 }).format(Number(value))}
+                  />
+                  <RechartsTooltip
+                    contentStyle={{ backgroundColor: '#1f1f22', borderColor: 'rgba(255,255,255,0.1)', borderRadius: '12px' }}
+                    formatter={(value, name) => [formatoCOP.format(Number(value)), name]}
+                  />
+                  <Legend wrapperStyle={{ color: 'rgba(255,255,255,0.7)', fontSize: '12px' }} />
+                  <Bar dataKey="valor_reservas" name="Valor de reservas" fill="#f59e0b" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="pagos_aprobados" name="Pagos aprobados" fill="#10b981" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+        </>
+      )}
+    </section>
+  );
+};
+
 const DashboardNotificaciones = () => {
   const [notificaciones, setNotificaciones] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -49,7 +163,7 @@ const DashboardNotificaciones = () => {
       }
       if (newest) latestId.current = newest.id;
     } catch {
-      toast.error('No se pudieron cargar las notificaciones del dashboard');
+      toast.error('No se pudieron cargar las notificaciones del administrador');
     } finally {
       setLoading(false);
     }
@@ -226,13 +340,16 @@ const DashboardResumen = () => {
   ];
 
   return (
-    <div className="space-y-8">
-      <div className="panel-surface p-8 relative overflow-hidden">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,138,0,0.16),transparent_42%)]" />
+    <div className="space-y-6 sm:space-y-8">
+      <div className="admin-hero relative overflow-hidden rounded-[1.75rem] border border-white/[0.08] p-6 sm:p-8 lg:p-10">
+        <div className="absolute -right-16 -top-28 h-72 w-72 rounded-full bg-primary/10 blur-3xl" />
+        <div className="absolute bottom-0 right-0 h-48 w-2/3 bg-[radial-gradient(ellipse_at_bottom_right,rgba(255,138,0,0.12),transparent_68%)]" />
         <div className="relative">
-          <span className="page-eyebrow">Resumen ejecutivo</span>
-          <h1 className="page-title mb-3">Dashboard</h1>
-          <p className="page-subtitle">Bienvenido al panel de administración de Topher Producciones.</p>
+          <span className="page-eyebrow mb-4">Resumen ejecutivo</span>
+          <h1 className="mb-2 font-display text-3xl font-bold tracking-tight text-white sm:text-4xl">Administrador</h1>
+          <p className="max-w-2xl text-sm leading-relaxed text-white/55 sm:text-base">
+            Una vista clara de la actividad y el rendimiento de Topher Producciones.
+          </p>
         </div>
       </div>
 
@@ -241,27 +358,35 @@ const DashboardResumen = () => {
       ) : (
         <>
           <DashboardNotificaciones />
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {cards.map(({ label, value, tone, icon: Icon }, i) => (
-              <div key={i} className={`glass-card bg-surface/20 border-white/5 bg-gradient-to-br ${tone}`}>
-                <div className="flex items-center justify-between mb-6">
-                  <p className="text-white/60 text-sm font-semibold">{label}</p>
-                  <div className="p-2 rounded-xl border border-white/10 bg-background/40">
-                    <Icon className="w-4 h-4 text-primary" />
+              <div key={i} className={`admin-stat-card glass-card bg-surface/20 border-white/5 bg-gradient-to-br ${tone}`}>
+                <div className="relative z-[1] flex items-center justify-between gap-3">
+                  <p className="text-sm font-medium text-white/60">{label}</p>
+                  <div className="rounded-xl border border-white/10 bg-background/50 p-2.5">
+                    <Icon className="h-4 w-4 text-primary" />
                   </div>
                 </div>
-                <p className="text-3xl font-display font-black text-white">{value}</p>
+                <p className="relative z-[1] mt-5 font-display text-3xl font-semibold tracking-tight text-white sm:text-4xl">{value}</p>
+                <span className="relative z-[1] mt-2 block text-[11px] text-white/35">Actualizado con tus reservas</span>
               </div>
             ))}
           </div>
 
-          <div className="glass-card bg-surface/20 border-white/5 p-6 h-[400px]">
-            <h3 className="text-lg font-bold text-white mb-6">Distribución de Reservas</h3>
+          <div className="admin-chart-card glass-card bg-surface/20 border-white/5 p-5 sm:p-6">
+            <div className="relative z-[1] mb-4 flex flex-wrap items-end justify-between gap-2 sm:mb-5">
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-primary/80">Actividad</span>
+                <h3 className="mt-1 text-lg font-bold text-white sm:text-xl">Distribución de reservas</h3>
+              </div>
+              <span className="text-xs text-white/40">Por estado</span>
+            </div>
+            <div className="relative z-[1] h-[300px] sm:h-[340px]">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartData} margin={{ top: 20, right: 30, left: 0, bottom: 20 }}>
+              <BarChart data={chartData} margin={{ top: 10, right: 12, left: -12, bottom: 8 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" vertical={false} />
-                <XAxis dataKey="name" stroke="rgba(255,255,255,0.5)" tick={{fill: 'rgba(255,255,255,0.5)'}} />
-                <YAxis allowDecimals={false} stroke="rgba(255,255,255,0.5)" tick={{fill: 'rgba(255,255,255,0.5)'}} />
+                <XAxis dataKey="name" stroke="rgba(255,255,255,0.5)" tick={{ fill: 'rgba(255,255,255,0.55)', fontSize: 11 }} />
+                <YAxis allowDecimals={false} stroke="rgba(255,255,255,0.5)" tick={{ fill: 'rgba(255,255,255,0.55)', fontSize: 11 }} />
                 <RechartsTooltip 
                   contentStyle={{ backgroundColor: '#1f1f22', borderColor: 'rgba(255,255,255,0.1)', borderRadius: '12px' }}
                   itemStyle={{ color: '#fff' }}
@@ -273,7 +398,9 @@ const DashboardResumen = () => {
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
+            </div>
           </div>
+          <DashboardIngresos />
         </>
       )}
     </div>
@@ -355,7 +482,11 @@ const DashboardReservas = () => {
       });
       setAsignaciones((current) => [...current, response.data]);
       setPersonalSeleccionado('');
-      toast.success('Personal asignado. Ya puedes confirmar la reserva.');
+      if (response.data?.warning) {
+        toast.error(response.data.warning);
+      } else {
+        toast.success('Personal asignado. Ya puedes confirmar la reserva.');
+      }
     } catch (error: any) {
       toast.error(error?.response?.data?.detail || 'No se pudo asignar el personal');
     } finally {
@@ -1584,9 +1715,9 @@ const DashboardPortafolio = () => {
                     {evento.multimedia.slice(0, 3).map((media: any) => (
                       <div key={media.id || media.url_archivo} className="aspect-square overflow-hidden rounded-lg border border-white/10 bg-black/20">
                         {media.tipo === 'video' ? (
-                          <video src={resolvePortfolioMediaUrl(media.url_archivo)} muted playsInline preload="metadata" className="h-full w-full object-cover" />
+                          <video src={resolvePortfolioMediaUrl(media.url_archivo)} muted playsInline preload="none" className="h-full w-full object-cover" />
                         ) : (
-                          <img src={resolvePortfolioMediaUrl(media.url_archivo)} alt={media.titulo || evento.nombre} className="h-full w-full object-cover" />
+                          <img src={resolvePortfolioMediaUrl(media.url_archivo)} alt={media.titulo || evento.nombre} loading="lazy" decoding="async" className="h-full w-full object-cover" />
                         )}
                       </div>
                     ))}
@@ -1686,9 +1817,9 @@ const DashboardPortafolio = () => {
                       <div className="mt-2 flex items-center gap-3">
                         <div className="h-14 w-14 overflow-hidden rounded-lg border border-white/10 bg-black/20">
                           {item.tipo === 'video' ? (
-                            <video src={resolvePortfolioMediaUrl(item.url_archivo)} muted playsInline preload="metadata" className="h-full w-full object-cover" />
+                            <video src={resolvePortfolioMediaUrl(item.url_archivo)} muted playsInline preload="none" className="h-full w-full object-cover" />
                           ) : (
-                            <img src={resolvePortfolioMediaUrl(item.url_archivo)} alt={item.titulo || 'Vista previa'} className="h-full w-full object-cover" />
+                            <img src={resolvePortfolioMediaUrl(item.url_archivo)} alt={item.titulo || 'Vista previa'} loading="lazy" decoding="async" className="h-full w-full object-cover" />
                           )}
                         </div>
                         <p className="min-w-0 truncate text-[11px] text-emerald-300">Archivo listo para guardar</p>
@@ -1785,9 +1916,9 @@ const DashboardContactos = () => {
     }
     setSendingReply(mensaje.id);
     try {
-      await api.post(`/contacto/${mensaje.id}/responder/`, { mensaje: respuesta });
+      const response = await api.post(`/contacto/${mensaje.id}/responder/`, { mensaje: respuesta });
       setRespuestas((prev) => ({ ...prev, [mensaje.id]: '' }));
-      toast.success('Respuesta enviada al cliente');
+      toast.success(response.data?.detail || 'Respuesta enviada al remitente');
     } catch (error: any) {
       toast.error(error?.response?.data?.detail || 'No se pudo enviar la respuesta');
     } finally {
@@ -1832,29 +1963,28 @@ const DashboardContactos = () => {
 
               <div className="border-t border-white/10 pt-4">
                 <label className="block text-[10px] uppercase tracking-widest text-white/45 mb-2">
-                  Responder al cliente
+                  {mensaje.usuario ? 'Responder al cliente' : 'Responder al remitente por correo'}
                 </label>
-                {mensaje.usuario ? (
-                  <>
-                    <textarea
-                      rows={2}
-                      value={respuestas[mensaje.id] || ''}
-                      onChange={(event) => setRespuestas((prev) => ({ ...prev, [mensaje.id]: event.target.value }))}
-                      placeholder="Escribe una respuesta..."
-                      className="w-full rounded-xl border border-white/10 bg-background/60 p-3 text-sm text-white placeholder-white/30 outline-none focus:border-primary/60 resize-none"
-                    />
-                    <button
-                      type="button"
-                      disabled={sendingReply === mensaje.id}
-                      onClick={() => handleReply(mensaje)}
-                      className="btn-primary mt-3 px-4 py-2 text-xs disabled:opacity-50"
-                    >
-                      {sendingReply === mensaje.id ? 'Enviando...' : 'Enviar respuesta'}
-                    </button>
-                  </>
-                ) : (
-                  <p className="text-xs text-white/40">Este mensaje fue enviado como visitante y no tiene una cuenta para recibir respuestas dentro de la plataforma.</p>
-                )}
+                <textarea
+                  rows={2}
+                  maxLength={5000}
+                  value={respuestas[mensaje.id] || ''}
+                  onChange={(event) => setRespuestas((prev) => ({ ...prev, [mensaje.id]: event.target.value }))}
+                  placeholder="Escribe una respuesta..."
+                  className="w-full rounded-xl border border-white/10 bg-background/60 p-3 text-sm text-white placeholder-white/30 outline-none focus:border-primary/60 resize-none"
+                />
+                <button
+                  type="button"
+                  disabled={sendingReply === mensaje.id}
+                  onClick={() => handleReply(mensaje)}
+                  className="btn-primary mt-3 px-4 py-2 text-xs disabled:opacity-50"
+                >
+                  {sendingReply === mensaje.id
+                    ? 'Enviando...'
+                    : mensaje.usuario
+                      ? 'Enviar respuesta'
+                      : 'Enviar respuesta por correo'}
+                </button>
               </div>
 
               {!mensaje.leido && (
@@ -1870,6 +2000,194 @@ const DashboardContactos = () => {
   );
 };
 
+const fechaISO = (fecha: Date) => {
+  const mes = String(fecha.getMonth() + 1).padStart(2, '0');
+  const dia = String(fecha.getDate()).padStart(2, '0');
+  return `${fecha.getFullYear()}-${mes}-${dia}`;
+};
+
+const DashboardCalendario = () => {
+  const [mesActual, setMesActual] = useState(() => {
+    const hoy = new Date();
+    return new Date(hoy.getFullYear(), hoy.getMonth(), 1);
+  });
+  const [diaSeleccionado, setDiaSeleccionado] = useState(() => fechaISO(new Date()));
+  const [reservas, setReservas] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const primerDia = new Date(mesActual.getFullYear(), mesActual.getMonth(), 1);
+  const diasEnMes = new Date(mesActual.getFullYear(), mesActual.getMonth() + 1, 0).getDate();
+  const desplazamiento = (primerDia.getDay() + 6) % 7;
+  const celdasCalendario: Array<number | null> = [
+    ...Array.from({ length: desplazamiento }, () => null),
+    ...Array.from({ length: diasEnMes }, (_, index) => index + 1),
+  ];
+  const reservasDelDia = reservas.filter((reserva) => reserva.fecha_evento === diaSeleccionado)
+    .sort((a, b) => String(a.hora_evento).localeCompare(String(b.hora_evento)));
+
+  useEffect(() => {
+    let cancelled = false;
+    const cargarReservasMes = async () => {
+      setLoading(true);
+      try {
+        const desde = fechaISO(primerDia);
+        const hasta = fechaISO(new Date(mesActual.getFullYear(), mesActual.getMonth() + 1, 0));
+        const response = await api.get(`/reservas/?fecha_desde=${desde}&fecha_hasta=${hasta}&limit=1000`);
+        if (!cancelled) {
+          setReservas((Array.isArray(response.data) ? response.data : response.data.results || []).map(normalizeReserva));
+        }
+      } catch {
+        if (!cancelled) toast.error('No se pudieron cargar las reservas del calendario');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+
+    cargarReservasMes();
+    return () => { cancelled = true; };
+  }, [mesActual]);
+
+  const cambiarMes = (cantidad: number) => {
+    setMesActual((actual) => {
+      const siguiente = new Date(actual.getFullYear(), actual.getMonth() + cantidad, 1);
+      setDiaSeleccionado(fechaISO(siguiente));
+      return siguiente;
+    });
+  };
+
+  const reservasEnFecha = (dia: number) => {
+    const fecha = fechaISO(new Date(mesActual.getFullYear(), mesActual.getMonth(), dia));
+    return reservas.filter((reserva) => reserva.fecha_evento === fecha);
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <span className="page-eyebrow mb-3">Agenda</span>
+          <h1 className="page-title text-3xl md:text-4xl">Calendario de reservas</h1>
+          <p className="mt-2 text-sm text-white/45">Consulta las fechas, horarios y ubicaciones de los eventos.</p>
+        </div>
+        <div className="flex items-center justify-between gap-3 rounded-2xl border border-white/[0.08] bg-white/[0.025] p-2 sm:justify-start">
+          <button type="button" aria-label="Mes anterior" onClick={() => cambiarMes(-1)} className="rounded-xl p-2 text-white/55 transition-colors hover:bg-white/[0.07] hover:text-white">
+            <ChevronLeft className="h-5 w-5" />
+          </button>
+          <span className="min-w-[150px] text-center text-sm font-semibold capitalize text-white">
+            {mesActual.toLocaleDateString('es-CO', { month: 'long', year: 'numeric' })}
+          </span>
+          <button type="button" aria-label="Mes siguiente" onClick={() => cambiarMes(1)} className="rounded-xl p-2 text-white/55 transition-colors hover:bg-white/[0.07] hover:text-white">
+            <ChevronRight className="h-5 w-5" />
+          </button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1.35fr)_minmax(18rem,0.8fr)]">
+        <section className="glass-card bg-surface/20 border-white/5 p-3 sm:p-5" aria-label="Calendario mensual">
+          <div className="mb-2 grid grid-cols-7 gap-1 sm:mb-3 sm:gap-2">
+            {['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'].map((dia) => (
+              <div key={dia} className="py-2 text-center text-[10px] font-bold uppercase tracking-wider text-white/35 sm:text-xs">
+                {dia}
+              </div>
+            ))}
+          </div>
+          <div className="grid grid-cols-7 gap-1 sm:gap-2">
+            {celdasCalendario.map((dia, index) => {
+              if (!dia) return <div key={`empty-${index}`} aria-hidden="true" className="min-h-12 sm:min-h-[5.25rem]" />;
+              const fecha = fechaISO(new Date(mesActual.getFullYear(), mesActual.getMonth(), dia));
+              const count = reservasEnFecha(dia).length;
+              const seleccionado = fecha === diaSeleccionado;
+              const hoy = fecha === fechaISO(new Date());
+              return (
+                <button
+                  type="button"
+                  key={fecha}
+                  onClick={() => setDiaSeleccionado(fecha)}
+                  aria-pressed={seleccionado}
+                  className={`relative flex min-h-12 flex-col items-center justify-center rounded-xl border p-1 transition-colors sm:min-h-[5.25rem] sm:items-start sm:justify-between sm:p-2 ${
+                    seleccionado
+                      ? 'border-primary/40 bg-primary/10 text-white'
+                      : 'border-white/[0.045] bg-white/[0.018] text-white/70 hover:border-white/15 hover:bg-white/[0.045]'
+                  }`}
+                >
+                  <span className={`text-xs font-semibold sm:text-sm ${hoy ? 'text-primary' : ''}`}>{dia}</span>
+                  {count > 0 && (
+                    <span className="mt-1 flex items-center gap-1 rounded-full bg-primary/15 px-1.5 py-0.5 text-[9px] font-bold text-primary sm:mt-0 sm:text-[10px]">
+                      <span className="h-1 w-1 rounded-full bg-primary" /> {count}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+          <div className="mt-4 flex items-center gap-2 text-[11px] text-white/40">
+            <span className="h-2 w-2 rounded-full bg-primary" />
+            Número de reservas en el día
+          </div>
+        </section>
+
+        <section className="glass-card bg-surface/20 border-white/5 p-4 sm:p-5">
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <div>
+              <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-primary/80">Agenda del día</span>
+              <h2 className="mt-1 text-base font-bold capitalize text-white">
+                {new Date(`${diaSeleccionado}T12:00:00`).toLocaleDateString('es-CO', {
+                  weekday: 'long', day: 'numeric', month: 'long',
+                })}
+              </h2>
+            </div>
+            <span className="rounded-full border border-white/[0.08] bg-white/[0.035] px-2.5 py-1 text-xs text-white/55">
+              {reservasDelDia.length} {reservasDelDia.length === 1 ? 'evento' : 'eventos'}
+            </span>
+          </div>
+
+          {loading ? (
+            <div className="py-10 text-center text-sm text-white/45">Cargando agenda...</div>
+          ) : reservasDelDia.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-white/10 px-4 py-8 text-center">
+              <CalendarDays className="mx-auto mb-2 h-6 w-6 text-white/25" />
+              <p className="text-sm font-medium text-white/60">No hay reservas este día</p>
+              <p className="mt-1 text-xs text-white/35">Selecciona otra fecha para revisar la agenda.</p>
+            </div>
+          ) : (
+            <div className="max-h-[34rem] space-y-3 overflow-y-auto pr-1">
+              {reservasDelDia.map((reserva) => {
+                const horas = reserva.servicios_contratados?.map((item: any) => Number(item.duracion_horas) || 0) || [];
+                const duracion = Math.max(...(horas.length ? horas : [3]));
+                const horaInicio = String(reserva.hora_evento || '').slice(0, 5);
+                const horaFinDate = new Date(`${diaSeleccionado}T${horaInicio}:00`);
+                horaFinDate.setMinutes(horaFinDate.getMinutes() + duracion * 60);
+                const horaFin = horaFinDate.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', hour12: false });
+                const terminaDiaSiguiente = fechaISO(horaFinDate) !== diaSeleccionado;
+                const status = reserva.status_nombre || ({
+                  4: 'Pendiente', 5: 'Confirmada', 6: 'En proceso', 7: 'Cancelada', 8: 'Completada',
+                } as Record<number, string>)[reserva.status_id] || 'Sin estado';
+                return (
+                  <article key={reserva.id} className="rounded-xl border border-white/[0.07] bg-white/[0.025] p-3.5">
+                    <div className="mb-2 flex items-start justify-between gap-2">
+                      <h3 className="min-w-0 text-sm font-semibold text-white">{reserva.nombre_evento}</h3>
+                      <span className="shrink-0 rounded-full bg-primary/10 px-2 py-1 text-[9px] font-bold uppercase tracking-wide text-primary">{status}</span>
+                    </div>
+                    <p className="mb-2 text-xs text-white/45">{reserva.usuario?.nombre_completo || 'Cliente'} · {reserva.numero_solicitud}</p>
+                    <div className="space-y-1.5 text-xs text-white/65">
+                      <p className="flex items-center gap-2"><Clock className="h-3.5 w-3.5 shrink-0 text-primary/80" />{horaInicio} – {horaFin}{terminaDiaSiguiente ? ' (+1 día)' : ''} ({duracion} h)</p>
+                      <p className="flex items-start gap-2"><MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary/80" /><span>{reserva.lugar}{reserva.municipio ? `, ${reserva.municipio}` : ''}</span></p>
+                    </div>
+                    {reserva.servicios_contratados?.length > 0 && (
+                      <p className="mt-2 border-t border-white/[0.06] pt-2 text-[11px] text-white/40">
+                        {reserva.servicios_contratados.map((item: any) => item.servicio_nombre || item.servicio?.nombre).filter(Boolean).join(' · ')}
+                      </p>
+                    )}
+                  </article>
+                );
+              })}
+            </div>
+          )}
+        </section>
+      </div>
+    </div>
+  );
+};
+
 // Dashboard Principal
 const Dashboard = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -1878,6 +2196,7 @@ const Dashboard = () => {
 
   const menuItems = [
     { path: '', label: 'Resumen', icon: Home },
+    { path: 'calendario', label: 'Calendario', icon: CalendarDays },
     { path: 'reservas', label: 'Reservas', icon: Calendar },
     { path: 'servicios', label: 'Servicios', icon: Briefcase },
     { path: 'usuarios', label: 'Usuarios', icon: Users },
@@ -1885,6 +2204,11 @@ const Dashboard = () => {
     { path: 'portafolio', label: 'Portafolio', icon: ImageIcon },
     { path: 'contactos', label: 'Mensajes', icon: MessageSquare },
   ];
+  const activeMenuItem = menuItems.find((item) =>
+    item.path
+      ? location.pathname === `/dashboard/${item.path}`
+      : location.pathname === '/dashboard' || location.pathname === '/dashboard/'
+  ) || menuItems[0];
 
   const handleLogout = () => {
     localStorage.clear();
@@ -1912,7 +2236,7 @@ const Dashboard = () => {
   }, [sidebarOpen]);
 
   return (
-    <div className="min-h-screen bg-background text-white flex overflow-x-hidden">
+    <div className="admin-shell flex min-h-screen overflow-x-hidden text-white">
       <Toaster position="top-right" toastOptions={{
         style: {
           background: '#1f1f22',
@@ -1923,20 +2247,24 @@ const Dashboard = () => {
       }} />
       
       {/* Sidebar */}
-      <div className={`fixed md:sticky md:top-0 md:translate-x-0 top-0 left-0 h-screen w-[min(18rem,88vw)] shrink-0 border-r border-white/10 bg-background/95 backdrop-blur-xl transition-transform duration-300 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} z-50 panel-surface rounded-none`}>
-        <div className="p-5 sm:p-6">
-          <div className="flex items-start justify-between gap-3 mb-8">
-          <Link to="/" className="flex flex-col" onClick={() => setSidebarOpen(false)}>
-            <span className="text-2xl font-display font-black tracking-tighter uppercase">Topher</span>
-            <span className="text-[8px] font-medium tracking-[0.7em] uppercase text-white/40">Admin</span>
+      <aside className={`admin-sidebar fixed left-0 top-0 z-50 h-screen w-[min(18rem,88vw)] shrink-0 transition-transform duration-300 md:sticky md:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+        <div className="flex items-center justify-between gap-3 px-5 pb-6 pt-6 sm:px-6">
+          <Link to="/" className="group flex min-w-0 items-center gap-3" onClick={() => setSidebarOpen(false)}>
+            <span className="admin-brand-mark flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl">
+              <Flame className="h-5 w-5 text-primary" />
+            </span>
+            <span className="flex min-w-0 flex-col">
+              <span className="font-display text-xl font-bold tracking-tight text-white">Topher</span>
+              <span className="mt-0.5 text-[9px] font-semibold uppercase tracking-[0.25em] text-white/40">Administración</span>
+            </span>
           </Link>
-            <button type="button" aria-label="Cerrar menú de administración" onClick={() => setSidebarOpen(false)} className="md:hidden shrink-0 rounded-lg p-2 text-white/60 hover:bg-white/10 hover:text-white transition-colors">
+            <button type="button" aria-label="Cerrar menú de administración" onClick={() => setSidebarOpen(false)} className="shrink-0 rounded-xl p-2 text-white/55 transition-colors hover:bg-white/[0.07] hover:text-white md:hidden">
               <X className="w-5 h-5" />
             </button>
-          </div>
         </div>
 
-        <nav className="space-y-2 px-3 sm:px-4 overflow-y-auto max-h-[calc(100vh-160px)]">
+        <div className="px-5 pb-3 text-[10px] font-bold uppercase tracking-[0.22em] text-white/30">Espacio de trabajo</div>
+        <nav aria-label="Navegación de administración" className="admin-navigation max-h-[calc(100vh-190px)] space-y-1 overflow-y-auto px-3 sm:px-4">
           {menuItems.map((item) => {
             const Icon = item.icon;
             const isActive = location.pathname === `/dashboard${item.path ? '/' + item.path : ''}` || 
@@ -1946,20 +2274,21 @@ const Dashboard = () => {
                 key={item.path}
                 to={`/dashboard${item.path ? '/' + item.path : ''}`}
                 onClick={() => setSidebarOpen(false)}
-                className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${
+                className={`admin-nav-link group relative flex items-center gap-3 rounded-xl px-3.5 py-3 transition-all ${
                   isActive
-                    ? 'bg-primary/20 border border-primary/30 text-primary'
-                    : 'text-white/60 hover:text-white hover:bg-white/5'
+                    ? 'is-active text-white'
+                    : 'text-white/55 hover:text-white'
                 }`}
+                aria-current={isActive ? 'page' : undefined}
               >
-                <Icon className="w-5 h-5" />
-                <span className="font-semibold text-sm">{item.label}</span>
+                <Icon className={`h-[18px] w-[18px] transition-colors ${isActive ? 'text-primary' : 'text-white/40 group-hover:text-white/75'}`} />
+                <span className="text-[13px] font-semibold">{item.label}</span>
               </Link>
             );
           })}
         </nav>
 
-        <div className="absolute bottom-6 left-4 right-4">
+        <div className="absolute bottom-0 left-4 right-4 border-t border-white/[0.07] py-5">
           <button
             onClick={handleLogout}
             className="logout-button logout-button--full"
@@ -1969,41 +2298,49 @@ const Dashboard = () => {
             <span className="logout-label">Cerrar Sesión</span>
           </button>
         </div>
-      </div>
+      </aside>
       {sidebarOpen && (
         <button type="button" aria-label="Cerrar menú al tocar fuera" onClick={() => setSidebarOpen(false)} className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm md:hidden" />
       )}
 
       {/* Main Content */}
-      <div className="min-w-0 flex-1 w-full max-w-full overflow-hidden flex flex-col h-screen">
+      <div className="admin-main min-w-0 flex h-screen w-full max-w-full flex-1 flex-col overflow-hidden">
         {/* Top Bar */}
-        <div className="sticky top-0 bg-background/90 backdrop-blur-xl border-b border-white/10 min-h-20 flex-shrink-0 flex items-center px-4 sm:px-6 z-40">
+        <header className="admin-topbar sticky top-0 z-40 flex min-h-[4.5rem] flex-shrink-0 items-center border-b border-white/[0.07] px-4 backdrop-blur-xl sm:px-6 lg:px-8">
           <button
             type="button"
             aria-label={sidebarOpen ? 'Cerrar menú de administración' : 'Abrir menú de administración'}
             aria-expanded={sidebarOpen}
             onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="md:hidden p-2 -ml-2 hover:bg-white/5 rounded-lg transition-colors"
+            className="-ml-2 rounded-xl p-2 transition-colors hover:bg-white/[0.06] md:hidden"
           >
             {sidebarOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
           </button>
-          <div className="min-w-0 flex-1 flex items-center gap-2 sm:gap-3 ml-3 sm:ml-4">
-            <Flame className="w-5 h-5 text-primary" />
-            <h2 className="font-semibold text-white/80 truncate text-sm sm:text-base">Panel de Administración</h2>
+          <div className="ml-3 flex min-w-0 flex-1 items-center gap-3 sm:ml-0">
+            <span className="hidden text-xs font-medium text-white/35 sm:inline">Administración</span>
+            <span className="hidden text-white/20 sm:inline">/</span>
+            <h2 className="truncate text-sm font-semibold text-white sm:text-base">{activeMenuItem.label}</h2>
           </div>
-        </div>
+          <div className="ml-3 flex shrink-0 items-center gap-2 rounded-full border border-white/[0.08] bg-white/[0.035] py-1.5 pl-2 pr-3">
+            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/15 text-[10px] font-bold text-primary">TP</span>
+            <span className="hidden text-[11px] font-semibold text-white/65 sm:inline">Admin</span>
+          </div>
+        </header>
 
         {/* Content */}
-        <div className="min-w-0 p-3 sm:p-6 lg:p-8 overflow-y-auto flex-1">
-          <Routes>
-            <Route path="" element={<DashboardResumen />} />
-            <Route path="reservas" element={<DashboardReservas />} />
-            <Route path="servicios" element={<DashboardServicios />} />
-            <Route path="usuarios" element={<DashboardUsuarios />} />
-            <Route path="personal" element={<DashboardPersonal />} />
-            <Route path="portafolio" element={<DashboardPortafolio />} />
-            <Route path="contactos" element={<DashboardContactos />} />
-          </Routes>
+        <div className="admin-content min-w-0 flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
+          <div className="mx-auto w-full max-w-[1500px]">
+            <Routes>
+              <Route path="" element={<DashboardResumen />} />
+              <Route path="calendario" element={<DashboardCalendario />} />
+              <Route path="reservas" element={<DashboardReservas />} />
+              <Route path="servicios" element={<DashboardServicios />} />
+              <Route path="usuarios" element={<DashboardUsuarios />} />
+              <Route path="personal" element={<DashboardPersonal />} />
+              <Route path="portafolio" element={<DashboardPortafolio />} />
+              <Route path="contactos" element={<DashboardContactos />} />
+            </Routes>
+          </div>
         </div>
       </div>
     </div>

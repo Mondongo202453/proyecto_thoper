@@ -1,11 +1,14 @@
 from types import SimpleNamespace
 from unittest import TestCase
+from unittest.mock import patch
 
+from django.core import mail
+from django.test import override_settings
 from rest_framework.permissions import AllowAny, IsAdminUser
 from rest_framework.throttling import ScopedRateThrottle
 
-from .serializers import ContactoMensajeSerializer
-from .views import ContactoMensajeViewSet
+from .serializers import ContactoMensajeReadStatusSerializer, ContactoMensajeSerializer
+from .views import ContactoMensajeViewSet, enviar_respuesta_por_correo
 
 
 class ContactoMensajeSerializerTests(TestCase):
@@ -47,6 +50,22 @@ class ContactoMensajeSerializerTests(TestCase):
         self.assertFalse(serializer.is_valid())
         self.assertIn('mensaje', serializer.errors)
 
+    def test_admin_can_update_message_read_status(self):
+        serializer = ContactoMensajeReadStatusSerializer(data={'leido': True})
+
+        self.assertTrue(serializer.is_valid(), serializer.errors)
+        self.assertEqual(serializer.validated_data, {'leido': True})
+
+    def test_read_status_update_does_not_accept_other_fields(self):
+        serializer = ContactoMensajeReadStatusSerializer(data={
+            'leido': True,
+            'asunto': 'Asunto alterado',
+            'mensaje': 'Mensaje alterado',
+        })
+
+        self.assertTrue(serializer.is_valid(), serializer.errors)
+        self.assertEqual(serializer.validated_data, {'leido': True})
+
 
 class ContactoMensajeViewSetTests(TestCase):
     def test_public_create_is_rate_limited(self):
@@ -78,3 +97,37 @@ class ContactoMensajeViewSetTests(TestCase):
             SimpleNamespace(user=SimpleNamespace(is_staff=False)),
             view,
         ))
+
+    def test_message_updates_use_the_read_status_serializer(self):
+        for action in ('update', 'partial_update'):
+            with self.subTest(action=action):
+                view = ContactoMensajeViewSet()
+                view.action = action
+                self.assertIs(view.get_serializer_class(), ContactoMensajeReadStatusSerializer)
+
+
+class ContactReplyEmailTests(TestCase):
+    @override_settings(EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend')
+    def test_guest_reply_is_delivered_to_the_sender_without_real_email(self):
+        message = SimpleNamespace(
+            asunto='Consulta de prueba',
+            correo_remitente='visitante@example.invalid',
+        )
+
+        sent = enviar_respuesta_por_correo(message, 'Respuesta de prueba.')
+
+        self.assertTrue(sent)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, ['visitante@example.invalid'])
+        self.assertEqual(mail.outbox[0].subject, 'Respuesta a tu mensaje — Consulta de prueba')
+        self.assertEqual(mail.outbox[0].body, 'Respuesta de prueba.')
+
+    @patch('comunicacion.views.send_mail', return_value=0)
+    def test_email_failure_is_reported_as_not_sent(self, send_mail_mock):
+        message = SimpleNamespace(
+            asunto='Consulta de prueba',
+            correo_remitente='visitante@example.invalid',
+        )
+
+        self.assertFalse(enviar_respuesta_por_correo(message, 'Respuesta de prueba.'))
+        send_mail_mock.assert_called_once()

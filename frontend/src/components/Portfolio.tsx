@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Camera, X, ChevronRight, Loader2 } from 'lucide-react';
+import { Camera, X, ChevronRight } from 'lucide-react';
 import api, { BACKEND_HOST } from '../api/client';
 
 interface Media {
@@ -79,7 +79,6 @@ const localEventos: Evento[] = [
 
 const Portfolio = () => {
   const [eventos, setEventos] = useState<Evento[]>(localEventos);
-  const [loading, setLoading] = useState(false);
   const [selectedMedia, setSelectedMedia] = useState<Media | null>(null);
   const [filter, setFilter] = useState('Todos');
   const [columns, setColumns] = useState<number>(3);
@@ -109,7 +108,6 @@ const Portfolio = () => {
   }, []);
 
   useEffect(() => {
-    setLoading(true);
     api.get('/portafolio/')
       .then(res => {
         const data = (Array.isArray(res.data) ? res.data : res.data.results || []).map((evento: any) => ({
@@ -132,9 +130,8 @@ const Portfolio = () => {
         }
       })
       .catch(() => {
-        // Usar imágenes locales si el backend no responde o no hay datos
-      })
-      .finally(() => setLoading(false));
+        // Keep the local portfolio available if the backend is unavailable.
+      });
   }, []);
 
   const resolveMediaUrl = (mediaUrl?: string | null) => {
@@ -146,12 +143,6 @@ const Portfolio = () => {
 
   const categories = ['Todos', ...new Set(eventos.map(e => e.categoria))];
   const filteredEventos = filter === 'Todos' ? eventos : eventos.filter(e => e.categoria === filter);
-
-  if (loading) return (
-    <div className="flex items-center justify-center py-20">
-      <Loader2 className="w-10 h-10 animate-spin text-primary" />
-    </div>
-  );
 
   return (
     <section className="min-h-screen py-24 px-6 max-w-7xl mx-auto overflow-hidden">
@@ -195,15 +186,18 @@ const Portfolio = () => {
                   evento.multimedia[0].tipo === 'video' ? (
                     <video
                       src={resolveMediaUrl(evento.multimedia[0].url_media)}
+                      poster="/portfolio/concert-1.png"
                       muted
                       playsInline
-                      preload="metadata"
+                      preload="none"
                       className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-transform duration-700 scale-100 group-hover:scale-105"
                     />
                   ) : (
-                    <img 
-                      src={resolveMediaUrl(evento.multimedia[0].url_media)} 
+                    <img
+                      src={resolveMediaUrl(evento.multimedia[0].url_media)}
                       alt={evento.nombre}
+                      loading="lazy"
+                      decoding="async"
                       className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-transform duration-700 scale-100 group-hover:scale-105"
                     />
                   )
@@ -230,7 +224,7 @@ const Portfolio = () => {
           return Array.from({ length: missing }).map((_, i) => (
             <div key={`p-filler-${i}`} className="glass-card group relative overflow-hidden transition-all duration-300 flex flex-col h-full p-0">
               <div className="aspect-[4/5] overflow-hidden flex-shrink-0">
-                <img src="/portfolio/concert-1.png" alt="Galería" className="w-full h-full object-cover" />
+                <img src="/portfolio/concert-1.png" alt="Galería" loading="lazy" decoding="async" className="w-full h-full object-cover" />
               </div>
               <div className="p-6">
                 <h3 className="text-2xl font-display font-bold text-white mb-2">Más trabajos</h3>
@@ -273,12 +267,14 @@ const Portfolio = () => {
               controls
               autoPlay
               playsInline
+              preload="none"
               className="max-h-[calc(100dvh-2rem)] max-w-full rounded-2xl shadow-2xl shadow-primary/20 animate-fade-in-scale sm:max-h-[90vh]"
             />
           ) : (
             <img 
               src={resolveMediaUrl(selectedMedia.url_media)}
               alt="Imagen ampliada del portafolio"
+              decoding="async"
               className="max-h-[calc(100dvh-2rem)] max-w-full object-contain rounded-2xl shadow-2xl shadow-primary/20 animate-fade-in-scale sm:max-h-[90vh]"
             />
           )}

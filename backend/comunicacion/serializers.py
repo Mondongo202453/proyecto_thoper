@@ -23,3 +23,9 @@ class ContactoMensajeSerializer(serializers.ModelSerializer):
             'recibido_en',
         )
         read_only_fields = ('id', 'usuario', 'leido', 'recibido_en')
+
+
+class ContactoMensajeReadStatusSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ContactoMensaje
+        fields = ('leido',)

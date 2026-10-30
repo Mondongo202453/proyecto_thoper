@@ -1,3 +1,7 @@
+import logging
+import smtplib
+
+from django.core.mail import BadHeaderError
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -6,6 +10,8 @@ from django.conf import settings as django_settings
 
 from .models import Personal, StaffAssignment
 from .serializers import PersonalSerializer, StaffAssignmentSerializer
+
+logger = logging.getLogger(__name__)
 
 
 class PersonalViewSet(viewsets.ModelViewSet):
@@ -95,8 +101,14 @@ class StaffAssignmentViewSet(viewsets.ModelViewSet):
         response = super().create(request, *args, **kwargs)
 
         # RF23: Notificar al personal por correo al ser asignado
-        if response.status_code == 201:
-            self._notificar_personal_asignado(personal_id, reserva_id)
+        if response.status_code == status.HTTP_201_CREATED and not self._notificar_personal_asignado(
+            personal_id,
+            reserva_id,
+        ):
+            response.data['warning'] = (
+                'La asignación se guardó, pero no se pudo enviar el correo al personal. '
+                'Verifica la configuración de correo.'
+            )
 
         return response
 
@@ -108,7 +120,7 @@ class StaffAssignmentViewSet(viewsets.ModelViewSet):
             reserva = Reserva.objects.get(id=reserva_id)
             assignment = StaffAssignment.objects.get(personal=personal, reserva=reserva)
 
-            send_mail(
+            sent = send_mail(
                 subject=f"Nueva Asignación de Evento — {reserva.nombre_evento}",
                 message=(
                     f"Hola {personal.nombre},\n\n"
@@ -122,7 +134,13 @@ class StaffAssignmentViewSet(viewsets.ModelViewSet):
                 ),
                 from_email=django_settings.DEFAULT_FROM_EMAIL,
                 recipient_list=[personal.correo],
-                fail_silently=True,
+                fail_silently=False,
             )
-        except Exception as e:
-            print(f"[WARN] No se pudo enviar correo al personal: {e}")
+        except (BadHeaderError, OSError, smtplib.SMTPException):
+            logger.exception('No se pudo enviar el correo de asignación al personal.')
+            return False
+
+        if sent != 1:
+            logger.error('El servidor de correo no aceptó el mensaje de asignación al personal.')
+            return False
+        return True

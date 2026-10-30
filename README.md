@@ -8,6 +8,7 @@ gestión de solicitudes, reservas y contenido del portafolio de eventos.
 - Consulta de servicios y portafolio de eventos.
 - Registro, inicio de sesión y gestión del perfil de clientes.
 - Solicitud y seguimiento de reservas.
+- Calendario administrativo y selección de horarios disponibles en intervalos de 1 a 3 horas, incluso al cruzar la medianoche.
 - Paneles para clientes, personal y administración, según el rol.
 - Gestión de información del portafolio y documentos relacionados con reservas.
 - Modo de pago simulado para pruebas locales, sin cobros ni transacciones reales.

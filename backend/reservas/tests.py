@@ -1,9 +1,13 @@
 from datetime import date, time, timedelta
+from types import SimpleNamespace
+from unittest.mock import patch
 from django.test import SimpleTestCase
 from django.utils import timezone
+from rest_framework.test import APIClient
 
 from reservas.views import (
     calcular_precio_servicio,
+    hay_conflicto_horario,
     validar_cancelacion_reserva,
     validar_conflicto_asignacion,
 )
@@ -67,3 +71,100 @@ class ReservaBusinessRulesTests(SimpleTestCase):
 
         precio = calcular_precio_servicio(DummyTarifa(), 2, 3)
         self.assertEqual(precio, 1680000.00)
+
+    def test_horario_se_solapa_con_una_reserva_activa(self):
+        reserva = self._make_reserva(
+            fecha_evento=date(2026, 11, 20),
+            hora_evento=time(18, 0),
+        )
+        reserva.servicios_contratados = SimpleNamespace(
+            all=lambda: [SimpleNamespace(duracion_horas=2)]
+        )
+
+        self.assertTrue(hay_conflicto_horario(
+            date(2026, 11, 20), time(19, 30), 1, [reserva]
+        ))
+
+    def test_horarios_contiguos_son_disponibles(self):
+        reserva = self._make_reserva(
+            fecha_evento=date(2026, 11, 20),
+            hora_evento=time(18, 0),
+        )
+        reserva.servicios_contratados = SimpleNamespace(
+            all=lambda: [SimpleNamespace(duracion_horas=2)]
+        )
+
+        self.assertFalse(hay_conflicto_horario(
+            date(2026, 11, 20), time(20, 0), 2, [reserva]
+        ))
+
+    def test_disponibilidad_publica_solo_expone_intervalos_ocupados(self):
+        client = APIClient()
+        with patch('reservas.views.reservas_activas_en_fecha', return_value=[]):
+            response = client.get('/api/reservas/disponibilidad/', {
+                'fecha': '2026-11-20',
+                'hora': '19:00',
+                'duracion': '2',
+            })
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.data['disponible'])
+        self.assertEqual(response.data['horarios_ocupados'], [])
+        self.assertNotIn('lugar', response.data)
+
+    def test_disponibilidad_rechaza_duraciones_no_permitidas(self):
+        client = APIClient()
+        with patch('reservas.views.reservas_activas_en_fecha', return_value=[]):
+            response = client.get('/api/reservas/disponibilidad/', {
+                'fecha': '2026-11-20',
+                'hora': '19:00',
+                'duracion': '4',
+            })
+
+        self.assertEqual(response.status_code, 400)
+
+    def test_disponibilidad_bloquea_solapamiento_con_reserva_de_la_noche_anterior(self):
+        reserva = self._make_reserva(
+            fecha_evento=date(2026, 11, 19),
+            hora_evento=time(23, 0),
+        )
+        reserva.servicios_contratados = SimpleNamespace(
+            all=lambda: [SimpleNamespace(duracion_horas=2)]
+        )
+        client = APIClient()
+
+        with patch('reservas.views.reservas_activas_en_fecha', return_value=[reserva]):
+            response = client.get('/api/reservas/disponibilidad/', {
+                'fecha': '2026-11-20',
+                'hora': '00:30',
+                'duracion': '1',
+            })
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.data['disponible'])
+        self.assertEqual(response.data['horarios_ocupados'][0]['inicio_minutos'], -60)
+        self.assertEqual(response.data['horarios_ocupados'][0]['fin_minutos'], 60)
+
+    def test_disponibilidad_bloquea_reserva_que_empieza_despues_de_medianoche(self):
+        reserva = self._make_reserva(
+            fecha_evento=date(2026, 11, 21),
+            hora_evento=time(0, 30),
+        )
+        reserva.servicios_contratados = SimpleNamespace(
+            all=lambda: [SimpleNamespace(duracion_horas=1)]
+        )
+        client = APIClient()
+
+        with patch('reservas.views.reservas_activas_en_fecha', return_value=[reserva]):
+            response = client.get('/api/reservas/disponibilidad/', {
+                'fecha': '2026-11-20',
+                'hora': '23:30',
+                'duracion': '2',
+            })
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.data['disponible'])
+        self.assertEqual(response.data['horarios_ocupados'][0]['inicio_minutos'], 1470)
+        self.assertEqual(response.data['horarios_ocupados'][0]['fin_minutos'], 1530)
+        self.assertEqual(response.data['horarios_ocupados'][0]['inicio_dia_offset'], 1)
+        self.assertEqual(response.data['horarios_ocupados'][0]['fin_dia_offset'], 1)

@@ -9,6 +9,13 @@ import datetime
 
 from .models import Reserva, ReservationService, StatusHistory
 from .serializers import ReservaSerializer, ReservationServiceSerializer
+from .scheduling import (
+    ESTADOS_ACTIVOS,
+    HORAS_EVENTO_PERMITIDAS,
+    duracion_reserva_horas,
+    hay_conflicto_horario,
+    reservas_activas_en_fecha,
+)
 
 
 # ─────────────────────────────────────────────────────────
@@ -25,7 +32,6 @@ TRANSICIONES_VALIDAS = {
 # IDs de status según topher_db.sql:
 # 4=Pendiente, 5=Confirmada, 6=En Proceso, 7=Cancelada, 8=Completada
 STATUS_LABELS = {4: 'Pendiente', 5: 'Confirmada', 6: 'En Proceso', 7: 'Cancelada', 8: 'Completada'}
-ESTADOS_ACTIVOS = [4, 5, 6]
 
 
 def validar_cancelacion_reserva(reserva, user, now=None):
@@ -112,6 +118,78 @@ class ReservaViewSet(viewsets.ModelViewSet):
             qs = qs.filter(usuario_id=usuario_id)
 
         return qs
+
+    @action(
+        detail=False,
+        methods=['get'],
+        permission_classes=[permissions.AllowAny],
+        url_path='disponibilidad',
+    )
+    def disponibilidad(self, request):
+        fecha_raw = request.query_params.get('fecha')
+        try:
+            fecha = datetime.date.fromisoformat(fecha_raw or '')
+        except ValueError:
+            return Response(
+                {'detail': 'Indica una fecha válida en formato AAAA-MM-DD.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if fecha < timezone.localdate():
+            return Response(
+                {'detail': 'La fecha debe ser hoy o una fecha futura.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        reservas = reservas_activas_en_fecha(fecha)
+        ocupados = []
+        for reserva in reservas:
+            inicio_reserva = datetime.datetime.combine(
+                reserva.fecha_evento, reserva.hora_evento
+            )
+            fin = inicio_reserva + datetime.timedelta(hours=float(duracion_reserva_horas(reserva)))
+            inicio_dia = datetime.datetime.combine(fecha, datetime.time.min)
+            fin_dia = inicio_dia + datetime.timedelta(days=1)
+            if inicio_reserva >= fin_dia + datetime.timedelta(hours=3) or fin <= inicio_dia - datetime.timedelta(hours=3):
+                continue
+            ocupados.append({
+                'inicio': inicio_reserva.strftime('%H:%M'),
+                'fin': fin.strftime('%H:%M'),
+                'inicio_minutos': int((inicio_reserva - inicio_dia).total_seconds() // 60),
+                'fin_minutos': int((fin - inicio_dia).total_seconds() // 60),
+                'inicio_dia_offset': (inicio_reserva.date() - fecha).days,
+                'fin_dia_offset': (fin.date() - fecha).days,
+            })
+
+        hora_raw = request.query_params.get('hora')
+        duracion_raw = request.query_params.get('duracion')
+        disponible = None
+        if hora_raw:
+            try:
+                hora = datetime.time.fromisoformat(hora_raw or '')
+                duracion = int(duracion_raw or '')
+                if duracion not in HORAS_EVENTO_PERMITIDAS:
+                    raise ValueError
+            except ValueError:
+                return Response(
+                    {'detail': 'La hora debe ser válida y la duración debe ser de 1, 2 o 3 horas.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            fecha_hora_evento = timezone.make_aware(
+                datetime.datetime.combine(fecha, hora),
+                timezone.get_current_timezone(),
+            )
+            if fecha_hora_evento <= timezone.now():
+                return Response(
+                    {'detail': 'Selecciona una hora futura.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            disponible = not hay_conflicto_horario(fecha, hora, duracion, reservas)
+
+        return Response({
+            'fecha': fecha.isoformat(),
+            'disponible': disponible,
+            'horarios_ocupados': ocupados,
+        })
 
     # ── Cambiar estado (RF17, RN06) ──────────────────────────────────
     @action(detail=True, methods=['post'], permission_classes=[permissions.IsAdminUser])

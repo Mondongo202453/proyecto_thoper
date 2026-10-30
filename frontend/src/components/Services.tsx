@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
-import { Flame, ShoppingCart, Loader2, X, Clock, Package, ChevronRight } from 'lucide-react';
+import { Flame, ShoppingCart, X, Clock, Package, ChevronRight } from 'lucide-react';
 import api, { BACKEND_HOST } from '../api/client';
 import axios from 'axios';
 
@@ -10,8 +10,14 @@ export interface Servicio {
   nombre: string;
   descripcion: string;
   categoria_nombre: string;
-  imagenes: { url_imagen: string; es_principal: boolean; tipo?: 'image' | 'video' }[];
-  tarifas: { id: number; unidad: string; precio_unitario: string }[];
+  imagenes: { url_imagen: string; es_principal: boolean; alt_text?: string | null; tipo?: 'image' | 'video' }[];
+  tarifas: {
+    id: number;
+    unidad: string;
+    precio_unitario: string;
+    activa?: boolean;
+    cantidad_minima?: number;
+  }[];
 }
 
 const localServicios: Servicio[] = [
@@ -20,7 +26,7 @@ const localServicios: Servicio[] = [
     nombre: 'Máquina de Humo Profesional',
     descripcion: 'Genera atmósferas densas y controladas para shows, sesiones fotográficas y lanzamientos de productos.',
     categoria_nombre: 'Maquinaria',
-    imagenes: [{ url_imagen: '/img/gemini-1.png', es_principal: true }],
+    imagenes: [{ url_imagen: '/img/gemini-1.webp', es_principal: true }],
     tarifas: [
       { id: 1, unidad: 'Por evento', precio_unitario: '1200' },
       { id: 2, unidad: 'Por hora', precio_unitario: '350' },
@@ -31,7 +37,7 @@ const localServicios: Servicio[] = [
     nombre: 'Máquina de Chispas Frías',
     descripcion: 'Efecto seguro y espectacular para tarimas, conciertos y presentaciones en interiores.',
     categoria_nombre: 'Efectos',
-    imagenes: [{ url_imagen: '/img/gemini-2.png', es_principal: true }],
+    imagenes: [{ url_imagen: '/img/gemini-2.webp', es_principal: true }],
     tarifas: [
       { id: 3, unidad: 'Por evento', precio_unitario: '980' },
       { id: 4, unidad: 'Por 30 min', precio_unitario: '520' },
@@ -42,7 +48,7 @@ const localServicios: Servicio[] = [
     nombre: 'Máquina de Burbuja & CO2',
     descripcion: 'Ambientación visual única con burbujas y columnas de CO2 para grandes celebraciones.',
     categoria_nombre: 'Maquinaria',
-    imagenes: [{ url_imagen: '/img/gemini-3.png', es_principal: true }],
+    imagenes: [{ url_imagen: '/img/gemini-3.webp', es_principal: true }],
     tarifas: [
       { id: 5, unidad: 'Por evento', precio_unitario: '1100' },
       { id: 6, unidad: 'Por hora', precio_unitario: '380' },
@@ -53,7 +59,7 @@ const localServicios: Servicio[] = [
     nombre: 'Control de Iluminación Inteligente',
     descripcion: 'Sistemas de luces dinámicas para crear ambientes impactantes y sincronizados con tu música.',
     categoria_nombre: 'Producción',
-    imagenes: [{ url_imagen: '/img/gemini-4.png', es_principal: true }],
+    imagenes: [{ url_imagen: '/img/gemini-4.webp', es_principal: true }],
     tarifas: [
       { id: 7, unidad: 'Por evento', precio_unitario: '1400' },
       { id: 8, unidad: 'Por hora', precio_unitario: '420' },
@@ -64,7 +70,7 @@ const localServicios: Servicio[] = [
     nombre: 'Generador de Vapor Frío',
     descripcion: 'Efecto de niebla suave que intensifica cualquier escenario sin comprometer la seguridad.',
     categoria_nombre: 'Maquinaria',
-    imagenes: [{ url_imagen: '/img/gemini-5.png', es_principal: true }],
+    imagenes: [{ url_imagen: '/img/gemini-5.webp', es_principal: true }],
     tarifas: [
       { id: 9, unidad: 'Por evento', precio_unitario: '900' },
       { id: 10, unidad: 'Por hora', precio_unitario: '320' },
@@ -75,7 +81,7 @@ const localServicios: Servicio[] = [
     nombre: 'Equipo de Proyección LED',
     descripcion: 'Pantallas y consolas para mostrar contenido en vivo con control total de colores y movimientos.',
     categoria_nombre: 'Producción',
-    imagenes: [{ url_imagen: '/img/gemini-6.png', es_principal: true }],
+    imagenes: [{ url_imagen: '/img/gemini-6.webp', es_principal: true }],
     tarifas: [
       { id: 11, unidad: 'Por evento', precio_unitario: '1300' },
       { id: 12, unidad: 'Por hora', precio_unitario: '410' },
@@ -85,7 +91,6 @@ const localServicios: Servicio[] = [
 
 const Services = () => {
   const [servicios, setServicios] = useState<Servicio[]>(localServicios);
-  const [loading, setLoading] = useState(true);
   const [selectedService, setSelectedService] = useState<Servicio | null>(null);
   const [columns, setColumns] = useState<number>(3);
 
@@ -125,16 +130,16 @@ const Services = () => {
 
   // Explicit mapping of service id -> image file in frontend/public/img
   const serviceImageMap: Record<number, string> = {
-    1001: '/img/gemini-1.png', // Máquina de Humo Profesional
-    1002: '/img/gemini-2.png', // Máquina de Chispas Frías
-    1003: '/img/gemini-3.png', // Máquina de Burbuja & CO2
-    1004: '/img/gemini-4.png', // Control de Iluminación Inteligente
-    1005: '/img/gemini-5.png', // Generador de Vapor Frío
-    1006: '/img/gemini-6.png', // Equipo de Proyección LED
+    1001: '/img/gemini-1.webp', // Máquina de Humo Profesional
+    1002: '/img/gemini-2.webp', // Máquina de Chispas Frías
+    1003: '/img/gemini-3.webp', // Máquina de Burbuja & CO2
+    1004: '/img/gemini-4.webp', // Control de Iluminación Inteligente
+    1005: '/img/gemini-5.webp', // Generador de Vapor Frío
+    1006: '/img/gemini-6.webp', // Equipo de Proyección LED
   };
 
   // Fallback images located in frontend/public/img (used if no mapping available)
-  const defaultImages = ['/img/gemini-1.png','/img/gemini-2.png','/img/gemini-3.png','/img/gemini-4.png','/img/gemini-5.png','/img/gemini-6.png'];
+  const defaultImages = ['/img/gemini-1.webp','/img/gemini-2.webp','/img/gemini-3.webp','/img/gemini-4.webp','/img/gemini-5.webp','/img/gemini-6.webp'];
 
   useEffect(() => {
     axios.get(`${BACKEND_HOST}/api/servicios/`)
@@ -153,8 +158,7 @@ const Services = () => {
       .catch(err => {
         console.error(err);
         setServicios(localServicios);
-      })
-      .finally(() => setLoading(false));
+      });
   }, []);
 
   const container = {
@@ -169,12 +173,6 @@ const Services = () => {
     hidden: { opacity: 0, y: 30 },
     show: { opacity: 1, y: 0, transition: { duration: 0.6, ease: "easeOut" } }
   };
-
-  if (loading) return (
-    <div className="flex items-center justify-center py-20">
-      <Loader2 className="w-10 h-10 animate-spin text-primary" />
-    </div>
-  );
 
   return (
     <section className="min-h-screen py-16 sm:py-24 px-4 sm:px-6 max-w-7xl mx-auto overflow-hidden">
@@ -201,6 +199,7 @@ const Services = () => {
             const imageUrl = primaryMedia?.url_imagen
               ? resolveImageUrl(primaryMedia.url_imagen)
               : (serviceImageMap[servicio.id] || defaultImages[idx % defaultImages.length]);
+            const previewImageUrl = isVideoMedia(primaryMedia) ? '/img/imagen1.jpg' : imageUrl;
             return (
               <div
                 key={servicio.id}
@@ -208,21 +207,13 @@ const Services = () => {
                 onClick={() => setSelectedService(servicio)}
               >
                 <div className="relative aspect-[16/10] rounded-[1.25rem] overflow-hidden mb-6 bg-surface/50 border border-white/5 flex-shrink-0">
-                  {isVideoMedia(primaryMedia) ? (
-                    <video
-                      src={imageUrl}
-                      muted
-                      playsInline
-                      preload="metadata"
-                      className="w-full h-full object-cover transition-transform duration-700 scale-100 group-hover:scale-110"
-                    />
-                  ) : (
-                    <img 
-                      src={imageUrl} 
-                      alt={servicio.nombre}
-                      className="w-full h-full object-cover transition-transform duration-700 scale-100 group-hover:scale-110"
-                    />
-                  )}
+                  <img
+                    src={previewImageUrl}
+                    alt={servicio.nombre}
+                    loading="lazy"
+                    decoding="async"
+                    className="w-full h-full object-cover transition-transform duration-700 scale-100 group-hover:scale-110"
+                  />
                   <div className="absolute top-4 left-4">
                     <span className="px-3 py-1 rounded-lg bg-black/60 backdrop-blur-md border border-white/10 text-[10px] font-bold uppercase tracking-widest text-primary">
                       {servicio.categoria_nombre}
@@ -264,7 +255,7 @@ const Services = () => {
           return Array.from({ length: missing }).map((_, i) => (
             <div key={`filler-${i}`} className="glass-card group transition-all duration-300 flex flex-col h-full p-6 opacity-90">
               <div className="relative aspect-[16/10] rounded-[1.25rem] overflow-hidden mb-6 bg-surface/60 border border-white/5 flex-shrink-0">
-                <img src="/img/gemini-1.png" alt="Otros servicios" className="w-full h-full object-cover" />
+                <img src="/img/gemini-1.webp" alt="Otros servicios" loading="lazy" decoding="async" className="w-full h-full object-cover" />
               </div>
               <h3 className="text-2xl font-bold mb-3">Otros Servicios</h3>
               <p className="text-white/50 text-sm mb-8 leading-relaxed">Contáctanos para más opciones y paquetes personalizados.</p>
@@ -302,9 +293,9 @@ const Services = () => {
                   const modalMedia = selectedService.imagenes?.[0];
                   const modalImage = modalMedia?.url_imagen ? resolveImageUrl(modalMedia.url_imagen) : defaultImages[(idx >= 0 ? idx : 0) % defaultImages.length];
                   return isVideoMedia(modalMedia) ? (
-                    <video src={modalImage} controls playsInline className="w-full h-full object-cover" />
+                    <video src={modalImage} controls playsInline preload="none" poster="/img/imagen1.jpg" className="w-full h-full object-cover" />
                   ) : (
-                    <img src={modalImage} alt={selectedService.nombre} className="w-full h-full object-cover" />
+                    <img src={modalImage} alt={selectedService.nombre} decoding="async" className="w-full h-full object-cover" />
                   );
                 })()}
                 <button aria-label="Cerrar detalle del servicio" onClick={() => setSelectedService(null)} className="md:hidden absolute top-3 right-3 bg-black/60 p-2 rounded-full"><X /></button>
