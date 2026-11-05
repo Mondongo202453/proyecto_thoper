@@ -194,9 +194,13 @@ const Perfil = () => {
         <div className="glass-card bg-surface/20 border-white/5 p-8">
           <h2 className="text-xl font-bold mb-6">Acciones de Cuenta</h2>
           <div className="space-y-4">
-            <Link to="/recuperar-password" className="block p-4 border border-white/10 rounded-xl hover:bg-white/5 transition-colors">
-              <p className="font-semibold">Cambiar Contraseña</p>
-              <p className="text-sm text-white/50">Actualiza tu contraseña de acceso</p>
+            <Link
+              to="/recuperar-password"
+              state={{ identifier: user?.nombre_usuario || '' }}
+              className="block p-4 border border-white/10 rounded-xl hover:bg-white/5 transition-colors"
+            >
+              <p className="font-semibold">Recuperar contraseña</p>
+              <p className="text-sm text-white/50">Recibe un enlace seguro en el correo de tu cuenta</p>
             </Link>
             <button
               onClick={() => {

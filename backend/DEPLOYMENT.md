@@ -52,12 +52,18 @@ procesan datos.
    | `EMAIL_HOST` | Servidor SMTP del proveedor de correo |
    | `EMAIL_PORT` | Puerto SMTP del proveedor (normalmente `587`) |
    | `EMAIL_USE_TLS` | `True` |
-   | `EMAIL_USER` | Usuario SMTP, guardado como secreto |
-   | `EMAIL_PASS` | Contraseña o clave de aplicación SMTP, guardada como secreto |
+   | `EMAIL_USER` | `thoperproducciones.app@gmail.com`; cuenta SMTP, guardada como secreto |
+   | `EMAIL_PASS` | Contraseña de aplicación de Google, guardada como secreto |
+   | `EMAIL_FROM` | `thoperproducciones.app@gmail.com` |
 
    Si el servicio MySQL tiene otro nombre, ajusta `MySQL` en las referencias
    para que coincida con su nombre en Railway. No copies credenciales en el
    repositorio ni uses `MYSQL_PUBLIC_URL`.
+   Para Gmail, habilita la verificación en dos pasos y genera una contraseña
+   de aplicación para SMTP. No uses la contraseña normal de la cuenta. El
+   servidor utiliza STARTTLS en `smtp.gmail.com:587`; configura la misma cuenta
+   emisora en `EMAIL_USER` y `EMAIL_FROM`. Sin estas credenciales, la API
+   informa el fallo de envío y no presenta el correo como enviado.
 4. Añade un volumen al servicio Django, montado en `/app/media`. Esto conserva
    las imágenes, videos y PDFs entre despliegues.
 5. No configures todavía migraciones automáticas como comando pre-deploy.
@@ -80,20 +86,27 @@ autenticada de documentos, no mediante una URL pública de medios.
 Configura el SMTP antes de habilitar recuperación de contraseña; en producción
 Django usa SMTP para evitar que los enlaces de recuperación o las respuestas a
 mensajes de visitantes o avisos de asignación al personal terminen en los logs.
+La recuperación guarda en `reset_tokens` únicamente el hash SHA-256 del token.
+El enlace dura 15 minutos, se invalida si falla la entrega SMTP y solo puede
+utilizarse una vez. Configura `FRONTEND_URL` como la URL HTTPS real del sitio;
+el token viaja en el fragmento (`#token=`) para no incluirlo en las solicitudes
+HTTP del navegador.
 
 ## Desarrollo local
 
 Copia `.env.example` a `.env` solo para desarrollo local y reemplaza los valores
-de ejemplo. No uses el `.env` local ni credenciales reales en Railway.
+de ejemplo. Para probar recuperación real, agrega una contraseña de aplicación
+de Gmail a `EMAIL_PASS`; el proyecto no simula entregas ni muestra éxito cuando
+SMTP no confirma el envío. No uses el `.env` local ni credenciales reales en
+Railway.
 
 ### Mensajes de contacto
 
 Los mensajes enviados sin iniciar sesión aparecen en la bandeja del administrador.
 Al responder, Django envía un correo al remitente usando el backend configurado.
 Las respuestas a clientes con cuenta se entregan como notificaciones dentro de
-la aplicación. En desarrollo, el backend de correo predeterminado es la consola:
-los correos se muestran en la terminal de Django y no llegan a una bandeja real.
-Configura un SMTP válido para probar entregas reales; las pruebas automatizadas
+la aplicación. Los correos del proyecto usan el SMTP configurado; no se
+consideran entregados cuando SMTP no confirma el envío. Las pruebas automatizadas
 usan un backend en memoria y no envían correos externos.
 
 ### Pruebas de pago sin cobros

@@ -107,6 +107,8 @@ REST_FRAMEWORK = {
     ],
     'DEFAULT_THROTTLE_RATES': {
         'contacto': '10/hour',
+        'password_reset_lookup': '10/hour',
+        'password_reset': '5/hour',
     },
 }
 
@@ -234,19 +236,16 @@ MEDIA_URL = '/media/'
 MEDIA_ROOT = Path(config('MEDIA_ROOT', default=str(BASE_DIR / 'media'))).expanduser().resolve()
 
 # Email Configuration
-EMAIL_BACKEND = config(
-    'EMAIL_BACKEND',
-    default=(
-        'django.core.mail.backends.console.EmailBackend'
-        if DEBUG else 'django.core.mail.backends.smtp.EmailBackend'
-    ),
-)
+EMAIL_BACKEND = config('EMAIL_BACKEND', default='django.core.mail.backends.smtp.EmailBackend')
 EMAIL_HOST = config('EMAIL_HOST', default='smtp.gmail.com')
 EMAIL_PORT = config('EMAIL_PORT', default=587, cast=int)
 EMAIL_USE_TLS = config('EMAIL_USE_TLS', default=True, cast=bool)
-EMAIL_HOST_USER = config('EMAIL_USER', default='')
+EMAIL_HOST_USER = config('EMAIL_USER', default='thoperproducciones.app@gmail.com')
 EMAIL_HOST_PASSWORD = config('EMAIL_PASS', default='')
-DEFAULT_FROM_EMAIL = config('EMAIL_USER', default='noreply@topherproducciones.com')
+DEFAULT_FROM_EMAIL = config(
+    'EMAIL_FROM',
+    default=config('DEFAULT_FROM_EMAIL', default='thoperproducciones.app@gmail.com'),
+)
 EMAIL_TIMEOUT = config('EMAIL_TIMEOUT', default=15, cast=int)
 
 # URL del frontend (para links en correos)

@@ -117,18 +117,22 @@ class RegisterSerializer(serializers.ModelSerializer):
 
 
 class PasswordResetRequestSerializer(serializers.Serializer):
-    correo = serializers.EmailField()
+    identificador = serializers.CharField(max_length=150, trim_whitespace=True)
 
-    def validate_correo(self, value):
-        return value.strip().lower()
+    def validate_identificador(self, value):
+        value = value.strip()
+        return value.lower() if '@' in value else value
 
 
 class PasswordResetConfirmSerializer(serializers.Serializer):
-    token = serializers.CharField()
+    token = serializers.CharField(max_length=128, trim_whitespace=True)
     nueva_password = serializers.CharField(min_length=8, write_only=True, trim_whitespace=False)
-
-    def validate_token(self, value):
-        return value.strip()
+    confirmar_password = serializers.CharField(min_length=8, write_only=True, trim_whitespace=False)
 
     def validate_nueva_password(self, value):
         return _validar_fortaleza_password(value)
+
+    def validate(self, attrs):
+        if attrs['nueva_password'] != attrs['confirmar_password']:
+            raise serializers.ValidationError({'confirmar_password': 'Las contraseñas no coinciden.'})
+        return attrs

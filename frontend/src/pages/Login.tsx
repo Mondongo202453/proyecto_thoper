@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Mail, Lock, Loader2, ArrowRight, AlertCircle } from 'lucide-react';
 import api from '../api/client';
 
@@ -8,6 +8,7 @@ const Login = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const navigate = useNavigate();
+  const location = useLocation();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -103,6 +104,7 @@ const Login = () => {
               <input
                 id="login-identifier"
                 type="text" required
+                autoFocus={Boolean((location.state as { focusIdentifier?: boolean } | null)?.focusIdentifier)}
                 className="w-full bg-background border border-white/10 rounded-xl pl-12 pr-4 py-3.5 focus:border-primary outline-none transition-colors"
                 placeholder="usuario o correo@ejemplo.com"
                 value={formData.nombre_usuario}
@@ -127,7 +129,11 @@ const Login = () => {
               />
             </div>
             <div className="text-right mt-2">
-              <Link to="/recuperar-password" className="text-[10px] text-white/30 hover:text-primary transition-colors">
+              <Link
+                to="/recuperar-password"
+                state={{ identifier: formData.nombre_usuario.trim() }}
+                className="text-[10px] text-white/30 hover:text-primary transition-colors"
+              >
                 ¿Olvidaste tu contraseña?
               </Link>
             </div>

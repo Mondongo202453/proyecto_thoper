@@ -1,17 +1,24 @@
 import datetime
+import hashlib
 import logging
-import uuid
+import secrets
 from smtplib import SMTPException
 
 from django.conf import settings
 from django.contrib.auth import authenticate
-from django.core.mail import send_mail
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ImproperlyConfigured, ValidationError as DjangoValidationError
+from django.core.mail import BadHeaderError, EmailMultiAlternatives
 from django.db import transaction
+from django.db.models import Q
+from django.template import TemplateDoesNotExist, TemplateSyntaxError
+from django.template.loader import render_to_string
 from django.utils import timezone
 from rest_framework import generics, permissions, serializers, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import AuthenticationFailed
 from rest_framework.response import Response
+from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
@@ -128,46 +135,134 @@ class MeView(APIView):
 # ─────────────────────────────────────────────────────────
 # Reset de contraseña (RF04, RN07)
 # ─────────────────────────────────────────────────────────
-class PasswordResetRequestView(APIView):
+PASSWORD_RESET_TOKEN_MINUTES = 15
+PASSWORD_RESET_SENDER = 'thoperproducciones.app@gmail.com'
+
+
+def _buscar_usuario_para_reset(identificador):
+    return Usuario.objects.filter(
+        Q(correo__iexact=identificador) | Q(nombre_usuario__iexact=identificador)
+    ).first()
+
+
+def _enmascarar_correo(correo):
+    local, separator, domain = correo.partition('@')
+    if not separator:
+        return '***'
+    if len(local) <= 3:
+        local_enmascarado = '*' * 3
+    else:
+        local_enmascarado = f"{local[0]}{'*' * (len(local) - 3)}{local[-2:]}"
+    return f'{local_enmascarado}@{domain}'
+
+
+def _correo_reset_configurado():
+    return (
+        settings.EMAIL_BACKEND not in {
+            'django.core.mail.backends.console.EmailBackend',
+            'django.core.mail.backends.locmem.EmailBackend',
+        }
+        and bool(settings.EMAIL_HOST)
+        and settings.EMAIL_HOST_USER.lower() == PASSWORD_RESET_SENDER
+        and bool(settings.EMAIL_HOST_PASSWORD)
+    )
+
+
+def _enviar_correo_recuperacion(usuario, token):
+    frontend_url = settings.FRONTEND_URL.rstrip('/')
+    reset_url = f'{frontend_url}/recuperar-password#token={token}'
+    context = {
+        'nombre': usuario.nombre_completo,
+        'reset_url': reset_url,
+        'vigencia_minutos': PASSWORD_RESET_TOKEN_MINUTES,
+    }
+    texto = render_to_string('emails/password_reset.txt', context)
+    html = render_to_string('emails/password_reset.html', context)
+    email = EmailMultiAlternatives(
+        subject='Recuperación de contraseña - TOPHER.',
+        body=texto,
+        from_email=PASSWORD_RESET_SENDER,
+        to=[usuario.correo],
+    )
+    email.attach_alternative(html, 'text/html')
+    return email.send(fail_silently=False)
+
+
+class PasswordResetLookupView(APIView):
     permission_classes = [permissions.AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'password_reset_lookup'
 
     def post(self, request):
         serializer = PasswordResetRequestSerializer(data=request.data)
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-        correo = serializer.validated_data['correo']
+        usuario = _buscar_usuario_para_reset(serializer.validated_data['identificador'])
+        if not usuario or usuario.status_id != 1:
+            return Response(
+                {'detail': 'No pudimos identificar una cuenta activa. Vuelve al inicio e intenta de nuevo.'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        return Response({'correo_enmascarado': _enmascarar_correo(usuario.correo)})
 
-        token_str = None
+
+class PasswordResetRequestView(APIView):
+    permission_classes = [permissions.AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'password_reset'
+
+    def post(self, request):
+        serializer = PasswordResetRequestSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        usuario = _buscar_usuario_para_reset(serializer.validated_data['identificador'])
+        if not usuario or usuario.status_id != 1:
+            return Response(
+                {'detail': 'No pudimos identificar una cuenta activa. Vuelve al inicio e intenta de nuevo.'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        if not _correo_reset_configurado():
+            logger.error('Password reset email is not configured for SMTP delivery.')
+            return Response(
+                {'detail': 'El correo de recuperación no está configurado. No se envió ningún mensaje.'},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
+        token = secrets.token_urlsafe(32)
+        token_hash = hashlib.sha256(token.encode('utf-8')).hexdigest()
+        with transaction.atomic():
+            usuario = Usuario.objects.select_for_update().get(pk=usuario.pk)
+            ResetToken.objects.filter(usuario=usuario, usado=False).update(usado=True)
+            reset_token = ResetToken.objects.create(
+                usuario=usuario,
+                token=token_hash,
+                expira_en=timezone.now() + datetime.timedelta(minutes=PASSWORD_RESET_TOKEN_MINUTES),
+            )
+
         try:
-            with transaction.atomic():
-                usuario = Usuario.objects.select_for_update().get(correo__iexact=correo)
-                ResetToken.objects.filter(usuario=usuario, usado=False).update(usado=True)
-                token_str = str(uuid.uuid4())
-                expira_en = timezone.now() + datetime.timedelta(minutes=30)
-                ResetToken.objects.create(usuario=usuario, token=token_str, expira_en=expira_en)
-        except Usuario.DoesNotExist:
-            usuario = None
+            sent = _enviar_correo_recuperacion(usuario, token)
+            if sent != 1:
+                raise OSError('SMTP backend did not confirm delivery.')
+        except (
+            BadHeaderError,
+            ImproperlyConfigured,
+            OSError,
+            SMTPException,
+            TemplateDoesNotExist,
+            TemplateSyntaxError,
+            ValueError,
+        ):
+            logger.exception('Password reset email delivery failed.')
+            ResetToken.objects.filter(pk=reset_token.pk, usado=False).update(usado=True)
+            return Response(
+                {'detail': 'No fue posible enviar el correo de recuperación. Inténtalo nuevamente.'},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
 
-        if usuario is not None:
-            frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:5173')
-            reset_url = f"{frontend_url.rstrip('/')}/recuperar-password?token={token_str}"
-
-            try:
-                sent = send_mail(
-                    subject='Recuperación de contraseña — Topher Producciones',
-                    message=f"""Hola {usuario.nombre_completo},\n\nHaz clic en el siguiente enlace para restablecer tu contraseña:\n{reset_url}\n\nEste enlace expira en 30 minutos y solo puede usarse una vez.\n\nSi no solicitaste este cambio, ignora este correo.\n\nEquipo Topher Producciones.""",
-                    from_email=settings.DEFAULT_FROM_EMAIL,
-                    recipient_list=[correo],
-                    fail_silently=False,
-                )
-                if sent != 1:
-                    logger.error('No se pudo enviar el correo de recuperación de contraseña.')
-            except (OSError, SMTPException):
-                logger.exception('Falló el envío del correo de recuperación de contraseña.')
-
-        # Nunca se devuelve el token ni el enlace en la API. Solamente quien
-        # controle el correo registrado puede acceder al enlace de recuperación.
-        return Response({'detail': 'Si el correo existe, recibirás un enlace de recuperación.'})
+        return Response({
+            'detail': f'Enviamos el correo de recuperación a {_enmascarar_correo(usuario.correo)}.',
+            'correo_enmascarado': _enmascarar_correo(usuario.correo),
+        })
 
 
 class PasswordResetConfirmView(APIView):
@@ -180,17 +275,30 @@ class PasswordResetConfirmView(APIView):
 
         try:
             with transaction.atomic():
-                reset_token = ResetToken.objects.select_for_update().select_related('usuario').get(
-                    token=serializer.validated_data['token'],
-                    usado=False,
-                )
-                if reset_token.expira_en < timezone.now():
+                token = serializer.validated_data['token']
+                tokens = ResetToken.objects.select_for_update().select_related('usuario')
+                try:
+                    reset_token = tokens.get(
+                        token=hashlib.sha256(token.encode('utf-8')).hexdigest(),
+                        usado=False,
+                    )
+                except ResetToken.DoesNotExist:
+                    if len(token) != 36:
+                        raise
+                    reset_token = tokens.get(token=token, usado=False)
+                if reset_token.expira_en <= timezone.now():
+                    reset_token.usado = True
+                    reset_token.save(update_fields=['usado'])
                     return Response(
-                        {'detail': 'El enlace de recuperación ha expirado. Solicita uno nuevo.'},
+                        {'detail': 'El enlace de recuperación ya no es válido. Inicia nuevamente el proceso.'},
                         status=status.HTTP_400_BAD_REQUEST,
                     )
 
                 usuario = reset_token.usuario
+                try:
+                    validate_password(serializer.validated_data['nueva_password'], user=usuario)
+                except DjangoValidationError as exc:
+                    raise serializers.ValidationError({'nueva_password': exc.messages}) from exc
                 usuario.set_password(serializer.validated_data['nueva_password'])
                 usuario.intentos_fallidos = 0
                 usuario.bloqueado_hasta = None
@@ -200,7 +308,12 @@ class PasswordResetConfirmView(APIView):
                 reset_token.save(update_fields=['usado'])
                 ResetToken.objects.filter(usuario=usuario, usado=False).exclude(pk=reset_token.pk).update(usado=True)
         except ResetToken.DoesNotExist:
-            return Response({'detail': 'Token inválido o ya utilizado.'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {'detail': 'El enlace de recuperación no es válido o ya fue utilizado. Inicia nuevamente el proceso.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except serializers.ValidationError as exc:
+            return Response(exc.detail, status=status.HTTP_400_BAD_REQUEST)
 
         return Response({'detail': 'Contraseña actualizada exitosamente. Ya puedes iniciar sesión.'})
 

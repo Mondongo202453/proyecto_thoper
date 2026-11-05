@@ -5,7 +5,7 @@ from .views import (
     UsuarioViewSet, RoleViewSet, StatusViewSet,
     RegisterView, MeView,
     CustomTokenObtainPairView,
-    PasswordResetRequestView, PasswordResetConfirmView,
+    PasswordResetLookupView, PasswordResetRequestView, PasswordResetConfirmView,
 )
 
 router = DefaultRouter()
@@ -23,6 +23,7 @@ urlpatterns = [
     path('me/', MeView.as_view(), name='me'),
 
     # Reset de contraseña (RF04, RN07)
+    path('password-reset/lookup/', PasswordResetLookupView.as_view(), name='password_reset_lookup'),
     path('password-reset/', PasswordResetRequestView.as_view(), name='password_reset'),
     path('password-reset/confirm/', PasswordResetConfirmView.as_view(), name='password_reset_confirm'),
 ]
