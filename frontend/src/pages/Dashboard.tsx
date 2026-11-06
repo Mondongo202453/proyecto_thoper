@@ -11,6 +11,7 @@ import axios from 'axios';
 import { BACKEND_HOST } from '../api/client';
 import Modal from '../components/Modal';
 import TopherSelect from '../components/TopherSelect';
+import { parseCOPInput } from '../utils/currency';
 
 const normalizeReserva = (reserva: any) => {
   const statusId = reserva?.status_id ?? reserva?.status?.id ?? reserva?.status ?? reserva?.status_id ?? null;
@@ -822,10 +823,14 @@ const DashboardServicios = () => {
     }
 
     await Promise.all(validTarifas.map((tarifa) => {
+      const precio = parseCOPInput(tarifa.precio_unitario);
+      if (precio === null) {
+        throw new Error('El precio debe tener un formato válido, por ejemplo 350.000.');
+      }
       const payload = {
         servicio: servicioId,
         unidad: tarifa.unidad,
-        precio_unitario: Number(tarifa.precio_unitario),
+        precio_unitario: precio,
         cantidad_minima: Number(tarifa.cantidad_minima) || 1,
         activa: tarifa.activa,
       };
@@ -910,8 +915,8 @@ const DashboardServicios = () => {
       toast.error('Agrega al menos una imagen o video para el servicio');
       return;
     }
-    if (tarifas.some((tarifa) => tarifa.precio_unitario.trim() && Number(tarifa.precio_unitario) < 0)) {
-      toast.error('El precio no puede ser negativo');
+    if (tarifas.some((tarifa) => tarifa.precio_unitario.trim() && parseCOPInput(tarifa.precio_unitario) === null)) {
+      toast.error('Escribe un precio válido, por ejemplo 350.000 o 350000. Usa coma para los centavos.');
       return;
     }
 
@@ -1050,13 +1055,12 @@ const DashboardServicios = () => {
                   <div>
                     <label className="block text-[10px] uppercase tracking-widest text-white/50 mb-1">Precio</label>
                     <input
-                      type="number"
-                      min="0"
-                      step="0.01"
+                      type="text"
+                      inputMode="decimal"
                       value={tarifa.precio_unitario}
                       onChange={(e) => updateTarifa(index, 'precio_unitario', e.target.value)}
                       className="w-full bg-white/5 border border-white/10 rounded-xl p-2.5 text-white focus:outline-none focus:border-primary/50"
-                      placeholder="0.00"
+                      placeholder="350.000"
                     />
                   </div>
                   <div>
@@ -1089,7 +1093,7 @@ const DashboardServicios = () => {
                 </div>
               </div>
             ))}
-            <p className="text-[10px] text-white/40">Puedes agregar precios por hora, unidad o show. Deja vacío un precio que no quieras registrar.</p>
+            <p className="text-[10px] text-white/40">Usa punto para miles (350.000) y coma para centavos (350.000,50). También puedes escribir 350000. Deja vacío un precio que no quieras registrar.</p>
           </div>
           <div className="space-y-3">
             <div className="flex items-center justify-between">

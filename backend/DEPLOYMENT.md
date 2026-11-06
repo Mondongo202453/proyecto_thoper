@@ -2,19 +2,17 @@
 
 ## Compatibilidad y estado del despliegue
 
-Para continuar el desarrollo local con la base de XAMPP (MariaDB 10.4.32), el
-backend se mantiene temporalmente en Django 4.2.30, el último parche disponible
-de la serie 4.2. Esta serie ya no recibe soporte de seguridad y es solo para
-trabajo local; no debe considerarse una versión lista para un nuevo despliegue.
-Antes de publicar, actualiza Django a una versión con soporte y compatible con
-la base elegida; la serie Django 5.2 requiere MariaDB 10.5 o superior o MySQL
-8.0.11 o superior.
+El backend usa Django 5.2.19 LTS, una versión con soporte para el nuevo
+despliegue. Django 5.2 requiere MariaDB 10.5 o superior o MySQL 8.0.11 o
+superior. La base local de XAMPP usa MariaDB 10.4.32 y no es compatible con esta
+versión; conserva el respaldo local y no conectes el backend actualizado a esa
+base.
 
-El volcado `database/topher_db.sql` también fue generado con MariaDB 10.4.32.
-Antes de cambiar versiones, confirma el motor y la versión reales, crea un
-respaldo y comprueba que se pueda restaurar en un entorno de pruebas. No
-actualices la base ni ejecutes migraciones de producción hasta validar la
-compatibilidad y el esquema heredado.
+El volcado generado con MariaDB 10.4.32 debe restaurarse en la base MySQL 8 del
+nuevo entorno y verificarse antes de habilitar tráfico. No ejecutes migraciones
+automáticas: algunas tablas dependen del esquema heredado y usan
+`managed=False`. Primero compara las migraciones pendientes con el esquema
+restaurado y valida cualquier cambio de esquema en una copia de pruebas.
 
 Esta guía describe la configuración prevista para Railway, no el estado actual
 de los servicios. Confirma en el panel que el servicio de aplicación y la base

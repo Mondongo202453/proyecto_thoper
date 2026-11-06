@@ -7,6 +7,7 @@ import {
   XCircle, Bell, RefreshCw, ChevronDown, CreditCard
 } from 'lucide-react';
 import api from '../api/client';
+import { formatCOP } from '../utils/currency';
 
 const STATUS_COLORS: Record<number, string> = {
   4: 'bg-amber-500/10 border-amber-500/30 text-amber-400',   // Pendiente
@@ -433,7 +434,7 @@ const MisReservas = () => {
                         {r.status_nombre || STATUS_LABELS[r.status_id]}
                       </span>
                       <span className="text-sm font-bold font-display text-white/80">
-                        ${totalMonto(r).toLocaleString()} COP
+                        ${formatCOP(totalMonto(r))} COP
                       </span>
                       <ChevronRight className="w-4 h-4 text-white/20" />
                     </div>
@@ -509,12 +510,12 @@ const MisReservas = () => {
                     {selected.servicios_contratados.map((s: any, i: number) => (
                       <div key={i} className="flex items-center justify-between p-3 bg-white/5 rounded-xl text-sm">
                         <span className="text-white/80">{s.servicio_nombre || `Servicio #${s.servicio}`}</span>
-                        <span className="font-bold text-white">${parseFloat(s.precio_calculado).toLocaleString()}</span>
+                        <span className="font-bold text-white">${formatCOP(s.precio_calculado)}</span>
                       </div>
                     ))}
                     <div className="flex items-center justify-between p-3 bg-primary/10 border border-primary/20 rounded-xl">
                       <span className="text-[10px] font-bold uppercase tracking-widest text-primary">Total Estimado</span>
-                      <span className="font-display font-black text-primary">${totalMonto(selected).toLocaleString()} COP</span>
+                      <span className="font-display font-black text-primary">${formatCOP(totalMonto(selected))} COP</span>
                     </div>
                     <div className={`mt-4 rounded-xl border p-4 ${
                       [5, 6, 8].includes(selected.status_id)
@@ -528,7 +529,7 @@ const MisReservas = () => {
                         <div className="mb-3 flex justify-between text-xs text-white/60">
                           <span>Pagado</span>
                           <span className="font-semibold text-white">
-                            ${pagos.filter((p) => p.estado === 'APPROVED').reduce((sum, p) => sum + Number(p.monto), 0).toLocaleString()} COP
+                            ${formatCOP(pagos.filter((p) => p.estado === 'APPROVED').reduce((sum, p) => sum + Number(p.monto), 0))} COP
                           </span>
                         </div>
                         {paymentMode === 'mock' && (
@@ -549,7 +550,7 @@ const MisReservas = () => {
                         {pendingSimulatedPayment && (
                           <div className="mb-3 rounded-lg border border-sky-400/20 bg-sky-400/5 p-3">
                             <p className="mb-2 text-xs text-sky-100">
-                              Prueba pendiente por ${Number(pendingSimulatedPayment.monto).toLocaleString()} COP. Elige un resultado simulado:
+                              Prueba pendiente por ${formatCOP(Number(pendingSimulatedPayment.monto))} COP. Elige un resultado simulado:
                             </p>
                             <div className="grid grid-cols-2 gap-2">
                               <button
@@ -592,7 +593,7 @@ const MisReservas = () => {
                         )}
                         {pagos.slice(0, 3).map((pago) => (
                           <p key={pago.id} className="mt-2 flex justify-between text-[10px] text-white/50">
-                            <span>{pago.modo === 'SIMULADO' ? 'Prueba local' : 'Wompi'} · {pago.tipo} · ${Number(pago.monto).toLocaleString()} COP</span>
+                            <span>{pago.modo === 'SIMULADO' ? 'Prueba local' : 'Wompi'} · {pago.tipo} · ${formatCOP(Number(pago.monto))} COP</span>
                             <span>{pago.estado}</span>
                           </p>
                         ))}

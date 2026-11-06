@@ -3,6 +3,8 @@ import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import { Flame, ShoppingCart, X, Clock, Package, ChevronRight } from 'lucide-react';
 import api, { BACKEND_HOST } from '../api/client';
+import { formatCOP } from '../utils/currency';
+import { serviceTariffUnitLabel } from '../utils/pricing';
 import axios from 'axios';
 
 export interface Servicio {
@@ -200,6 +202,21 @@ const Services = () => {
               ? resolveImageUrl(primaryMedia.url_imagen)
               : (serviceImageMap[servicio.id] || defaultImages[idx % defaultImages.length]);
             const previewImageUrl = isVideoMedia(primaryMedia) ? '/img/imagen1.jpg' : imageUrl;
+            const tarifaInicial = servicio.tarifas
+              .filter((tarifa) => tarifa.activa !== false)
+              .map((tarifa) => ({
+                tarifa,
+                precio: Number(tarifa.precio_unitario) * (tarifa.cantidad_minima || 1),
+              }))
+              .sort((a, b) => a.precio - b.precio)[0];
+            const tarifaMinima = tarifaInicial?.tarifa;
+            const cantidadMinima = tarifaMinima?.cantidad_minima || 1;
+            const precioMinimo = tarifaInicial?.precio ?? 0;
+            const referenciaPrecio = tarifaMinima?.unidad === 'hora'
+              ? `${cantidadMinima} ${cantidadMinima === 1 ? 'unidad' : 'unidades'} · 1 hora`
+              : tarifaMinima?.unidad === 'show'
+                ? `${cantidadMinima} ${cantidadMinima === 1 ? 'show' : 'shows'}`
+                : `${cantidadMinima} ${cantidadMinima === 1 ? 'unidad' : 'unidades'}`;
             return (
               <div
                 key={servicio.id}
@@ -230,8 +247,13 @@ const Services = () => {
                   <div>
                     <span className="text-[10px] text-white/30 block uppercase tracking-widest mb-1">Inversión desde</span>
                     <span className="text-xl font-display font-black text-white">
-                      ${parseFloat(servicio.tarifas[0]?.precio_unitario || '0').toLocaleString()}
+                      ${formatCOP(precioMinimo)}
                     </span>
+                    {tarifaMinima && (
+                      <span className="mt-1 block text-[10px] text-white/45">
+                        {referenciaPrecio}
+                      </span>
+                    )}
                   </div>
                   <button
                     type="button"
@@ -327,8 +349,11 @@ const Services = () => {
                   <h4 className="font-bold mb-4 uppercase tracking-widest text-xs text-white/40">Tarifas Disponibles</h4>
                   {selectedService.tarifas.map(t => (
                     <div key={t.id} className="flex justify-between items-center py-3 border-b border-white/5 last:border-0">
-                      <span className="font-medium">{t.unidad}</span>
-                      <span className="text-primary font-bold">${parseFloat(t.precio_unitario).toLocaleString()}</span>
+                      <span className="font-medium">
+                        {serviceTariffUnitLabel(t.unidad)}
+                        {t.cantidad_minima && t.cantidad_minima > 1 ? ` · mínimo ${t.cantidad_minima}` : ''}
+                      </span>
+                      <span className="text-primary font-bold">${formatCOP(t.precio_unitario)}</span>
                     </div>
                   ))}
                 </div>

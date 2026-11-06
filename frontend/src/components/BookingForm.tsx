@@ -4,6 +4,7 @@ import { CheckCircle2, Loader2, Plus, Send, Trash2 } from 'lucide-react';
 import api, { BACKEND_HOST } from '../api/client';
 import axios from 'axios';
 import { Servicio } from './Services';
+import { calculateServicePrice, serviceTariffUnitLabel } from '../utils/pricing';
 
 type HorarioOcupado = {
   inicio: string;
@@ -74,6 +75,10 @@ const mensajeDeError = (error: unknown) => {
     return [];
   };
 
+  if (error.response?.status && error.response.status >= 500) {
+    return `El servidor tuvo un problema al enviar la solicitud (código ${error.response.status}). Intenta nuevamente más tarde.`;
+  }
+
   const mensajes = recopilarMensajes(error.response?.data);
   if (mensajes.length) return mensajes.join(' ');
   if (error.response?.status === 401) return 'Tu sesión expiró. Inicia sesión de nuevo para enviar la solicitud.';
@@ -122,9 +127,8 @@ const BookingForm = () => {
     const servicio = serviciosDisponibles.find((item) => item.id === Number(seleccion.servicio));
     const tarifa = servicio?.tarifas.find((item) => item.id === Number(seleccion.tarifa));
     const cantidad = Number(seleccion.cantidad);
-    const precio = Number(tarifa?.precio_unitario);
-    return Number.isFinite(precio) && Number.isInteger(cantidad) && cantidad > 0
-      ? total + precio * cantidad * formData.duracion_evento
+    return tarifa && Number.isInteger(cantidad) && cantidad > 0
+      ? total + calculateServicePrice(tarifa, cantidad, formData.duracion_evento)
       : total;
   }, 0);
 
@@ -616,7 +620,9 @@ const BookingForm = () => {
                         value={item.cantidad}
                         onChange={(event) => updateService(idx, { cantidad: event.target.value })}
                       />
-                      <label htmlFor={`cantidad-${idx}`} className="form-field-label form-field-label-static">Cantidad</label>
+                      <label htmlFor={`cantidad-${idx}`} className="form-field-label form-field-label-static">
+                        Cantidad{cantidadMinima > 1 ? ` (mín. ${cantidadMinima})` : ''}
+                      </label>
                     </div>
                   </div>
                   <div className="md:col-span-4">
@@ -643,7 +649,7 @@ const BookingForm = () => {
                         <option value="">Selecciona una tarifa</option>
                         {tarifasDisponibles.map((tarifa) => (
                           <option key={tarifa.id} value={tarifa.id}>
-                            {tarifa.unidad === 'hora' ? 'Por hora' : tarifa.unidad === 'unidad' ? 'Por unidad' : 'Por show'}
+                            {serviceTariffUnitLabel(tarifa.unidad)}
                             {' · '}{formatoMoneda.format(Number(tarifa.precio_unitario))}
                           </option>
                         ))}
@@ -665,8 +671,14 @@ const BookingForm = () => {
                   </div>
                   {tarifaSeleccionada && Number.isInteger(Number(item.cantidad)) && Number(item.cantidad) >= cantidadMinima && (
                     <p className="md:col-span-12 text-right text-sm text-white/65">
-                      Subtotal estimado: <strong className="text-white">
-                        {formatoMoneda.format(Number(tarifaSeleccionada.precio_unitario) * Number(item.cantidad) * formData.duracion_evento)}
+                      Subtotal estimado{tarifaSeleccionada.unidad === 'hora'
+                        ? ` · ${item.cantidad} × ${formData.duracion_evento} h`
+                        : ` · ${item.cantidad} ${item.cantidad === '1' ? 'unidad/show' : 'unidades/shows'}`}: <strong className="text-white">
+                        {formatoMoneda.format(calculateServicePrice(
+                          tarifaSeleccionada,
+                          Number(item.cantidad),
+                          formData.duracion_evento,
+                        ))}
                       </strong>
                     </p>
                   )}
@@ -685,7 +697,7 @@ const BookingForm = () => {
           <div className="mb-8 flex flex-col gap-1 rounded-xl border border-primary/25 bg-primary/5 p-4 text-right sm:flex-row sm:items-center sm:justify-between">
             <div className="text-left">
               <p className="text-sm text-white/75">Estimado de servicios · {formData.duracion_evento} {formData.duracion_evento === 1 ? 'hora' : 'horas'}</p>
-              <p className="text-xs text-white/45">La cotización final puede ajustarse después de revisar tu solicitud.</p>
+              <p className="text-xs text-white/45">La tarifa por hora se multiplica por la duración. Las tarifas por unidad o show se cobran por cantidad, sin multiplicar por horas.</p>
             </div>
             <strong className="text-xl text-primary">{formatoMoneda.format(subtotalEstimado)}</strong>
           </div>

@@ -1,7 +1,10 @@
+from decimal import Decimal
+
 from rest_framework import serializers
 from django.db import transaction
 from django.utils import timezone
 from .models import Reserva, ReservationService
+from .pricing import calcular_precio_servicio
 from .scheduling import hay_conflicto_horario, reservas_activas_en_fecha
 from servicios.models import Tarifa
 from usuarios.models import Status, Usuario
@@ -95,7 +98,7 @@ class ReservaSerializer(serializers.ModelSerializer):
                 tarifa = Tarifa.objects.get(id=item['tarifa'])
                 cantidad = int(item.get('cantidad', 1))
                 duracion = duracion_evento or Decimal(str(item.get('duracion_horas', 1.0)))
-                precio = Decimal(str(tarifa.precio_unitario)) * cantidad * duracion
+                precio = calcular_precio_servicio(tarifa, cantidad, duracion)
                 total_acumulado += precio
 
                 ReservationService.objects.create(

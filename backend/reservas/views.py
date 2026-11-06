@@ -8,6 +8,7 @@ from decimal import Decimal
 import datetime
 
 from .models import Reserva, ReservationService, StatusHistory
+from .pricing import calcular_precio_servicio
 from .serializers import ReservaSerializer, ReservationServiceSerializer
 from .scheduling import (
     ESTADOS_ACTIVOS,
@@ -81,10 +82,6 @@ def validar_conflicto_asignacion(personal_id, reserva_nueva, queryset=None):
         return True, f"Este miembro del personal ya tiene una asignación en la misma fecha y hora ({reserva_nueva.fecha_evento} a las {reserva_nueva.hora_evento})."
 
     return False, None
-
-
-def calcular_precio_servicio(tarifa, cantidad, duracion_horas):
-    return Decimal(str(tarifa.precio_unitario)) * Decimal(cantidad) * Decimal(str(duracion_horas))
 
 
 class ReservaViewSet(viewsets.ModelViewSet):
