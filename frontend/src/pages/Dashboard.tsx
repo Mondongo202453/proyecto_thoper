@@ -37,6 +37,29 @@ const formatoCOP = new Intl.NumberFormat('es-CO', {
   maximumFractionDigits: 0,
 });
 
+const CALENDAR_STATUS_STYLES: Record<number, { dot: string; badge: string; card: string }> = {
+  4: {
+    dot: 'bg-amber-400',
+    badge: 'bg-amber-500/15 text-amber-300',
+    card: 'border-amber-400/25 bg-amber-500/[0.06]',
+  },
+  5: {
+    dot: 'bg-emerald-400',
+    badge: 'bg-emerald-500/15 text-emerald-300',
+    card: 'border-emerald-400/25 bg-emerald-500/[0.06]',
+  },
+  6: {
+    dot: 'bg-blue-400',
+    badge: 'bg-blue-500/15 text-blue-300',
+    card: 'border-blue-400/25 bg-blue-500/[0.06]',
+  },
+  8: {
+    dot: 'bg-violet-400',
+    badge: 'bg-violet-500/15 text-violet-300',
+    card: 'border-violet-400/25 bg-violet-500/[0.06]',
+  },
+};
+
 const DashboardIngresos = () => {
   const [datos, setDatos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -2038,7 +2061,11 @@ const DashboardCalendario = () => {
         const hasta = fechaISO(new Date(mesActual.getFullYear(), mesActual.getMonth() + 1, 0));
         const response = await api.get(`/reservas/?fecha_desde=${desde}&fecha_hasta=${hasta}&limit=1000`);
         if (!cancelled) {
-          setReservas((Array.isArray(response.data) ? response.data : response.data.results || []).map(normalizeReserva));
+          setReservas(
+            (Array.isArray(response.data) ? response.data : response.data.results || [])
+              .map(normalizeReserva)
+              .filter((reserva: any) => reserva.status_id !== 7)
+          );
         }
       } catch {
         if (!cancelled) toast.error('No se pudieron cargar las reservas del calendario');
@@ -2048,7 +2075,11 @@ const DashboardCalendario = () => {
     };
 
     cargarReservasMes();
-    return () => { cancelled = true; };
+    window.addEventListener('dashboard-refresh', cargarReservasMes);
+    return () => {
+      cancelled = true;
+      window.removeEventListener('dashboard-refresh', cargarReservasMes);
+    };
   }, [mesActual]);
 
   const cambiarMes = (cantidad: number) => {
@@ -2098,7 +2129,10 @@ const DashboardCalendario = () => {
             {celdasCalendario.map((dia, index) => {
               if (!dia) return <div key={`empty-${index}`} aria-hidden="true" className="min-h-12 sm:min-h-[5.25rem]" />;
               const fecha = fechaISO(new Date(mesActual.getFullYear(), mesActual.getMonth(), dia));
-              const count = reservasEnFecha(dia).length;
+              const reservasDia = reservasEnFecha(dia);
+              const count = reservasDia.length;
+              const estadosPresentes = [...new Set(reservasDia.map((reserva) => reserva.status_id))]
+                .filter((statusId) => CALENDAR_STATUS_STYLES[statusId]);
               const seleccionado = fecha === diaSeleccionado;
               const hoy = fecha === fechaISO(new Date());
               return (
@@ -2107,6 +2141,7 @@ const DashboardCalendario = () => {
                   key={fecha}
                   onClick={() => setDiaSeleccionado(fecha)}
                   aria-pressed={seleccionado}
+                  aria-label={`${dia}, ${count} ${count === 1 ? 'reserva' : 'reservas'}${estadosPresentes.length ? `: ${estadosPresentes.map((statusId) => statusId === 4 ? 'pendiente' : statusId === 5 ? 'confirmada' : statusId === 6 ? 'en proceso' : 'completada').join(', ')}` : ''}`}
                   className={`relative flex min-h-12 flex-col items-center justify-center rounded-xl border p-1 transition-colors sm:min-h-[5.25rem] sm:items-start sm:justify-between sm:p-2 ${
                     seleccionado
                       ? 'border-primary/40 bg-primary/10 text-white'
@@ -2115,8 +2150,13 @@ const DashboardCalendario = () => {
                 >
                   <span className={`text-xs font-semibold sm:text-sm ${hoy ? 'text-primary' : ''}`}>{dia}</span>
                   {count > 0 && (
-                    <span className="mt-1 flex items-center gap-1 rounded-full bg-primary/15 px-1.5 py-0.5 text-[9px] font-bold text-primary sm:mt-0 sm:text-[10px]">
-                      <span className="h-1 w-1 rounded-full bg-primary" /> {count}
+                    <span className="mt-1 flex items-center gap-1 rounded-full bg-black/20 px-1.5 py-0.5 text-[9px] font-bold text-white/75 sm:mt-0 sm:text-[10px]">
+                      <span className="flex items-center gap-0.5">
+                        {estadosPresentes.map((statusId) => (
+                          <span key={statusId} className={`h-1.5 w-1.5 rounded-full ${CALENDAR_STATUS_STYLES[statusId].dot}`} />
+                        ))}
+                      </span>
+                      {count}
                     </span>
                   )}
                 </button>
@@ -2124,8 +2164,11 @@ const DashboardCalendario = () => {
             })}
           </div>
           <div className="mt-4 flex items-center gap-2 text-[11px] text-white/40">
-            <span className="h-2 w-2 rounded-full bg-primary" />
-            Número de reservas en el día
+            <span className="flex items-center gap-1.5">
+              <span className="h-2 w-2 rounded-full bg-amber-400" /> Pendiente
+              <span className="ml-2 h-2 w-2 rounded-full bg-emerald-400" /> Confirmada
+            </span>
+            <span className="ml-auto">Reservas activas</span>
           </div>
         </section>
 
@@ -2165,11 +2208,15 @@ const DashboardCalendario = () => {
                 const status = reserva.status_nombre || ({
                   4: 'Pendiente', 5: 'Confirmada', 6: 'En proceso', 7: 'Cancelada', 8: 'Completada',
                 } as Record<number, string>)[reserva.status_id] || 'Sin estado';
+                const statusStyles = CALENDAR_STATUS_STYLES[reserva.status_id] || {
+                  badge: 'bg-white/10 text-white/60',
+                  card: 'border-white/[0.07] bg-white/[0.025]',
+                };
                 return (
-                  <article key={reserva.id} className="rounded-xl border border-white/[0.07] bg-white/[0.025] p-3.5">
+                  <article key={reserva.id} className={`rounded-xl border p-3.5 ${statusStyles.card}`}>
                     <div className="mb-2 flex items-start justify-between gap-2">
                       <h3 className="min-w-0 text-sm font-semibold text-white">{reserva.nombre_evento}</h3>
-                      <span className="shrink-0 rounded-full bg-primary/10 px-2 py-1 text-[9px] font-bold uppercase tracking-wide text-primary">{status}</span>
+                      <span className={`shrink-0 rounded-full px-2 py-1 text-[9px] font-bold uppercase tracking-wide ${statusStyles.badge}`}>{status}</span>
                     </div>
                     <p className="mb-2 text-xs text-white/45">{reserva.usuario?.nombre_completo || 'Cliente'} · {reserva.numero_solicitud}</p>
                     <div className="space-y-1.5 text-xs text-white/65">

@@ -5,6 +5,9 @@ import api, { BACKEND_HOST } from '../api/client';
 import axios from 'axios';
 import { Servicio } from './Services';
 import { calculateServicePrice, serviceTariffUnitLabel } from '../utils/pricing';
+import municipiosPorDepartamento from '../data/colombianMunicipalities.json';
+
+const FUENTE_MUNICIPIOS_URL = 'https://www.datos.gov.co/Mapas-Nacionales/DIVIPOLA-C%C3%B3digos-municipios/gdxc-w37w';
 
 type HorarioOcupado = {
   inicio: string;
@@ -161,12 +164,14 @@ const BookingForm = () => {
       setHorariosOcupados([]);
       setHoraDisponible(null);
       setDisponibilidadError('');
+      setConsultandoDisponibilidad(false);
       return;
     }
 
     let cancelled = false;
     const consultarDisponibilidad = async () => {
       setConsultandoDisponibilidad(true);
+      setHoraDisponible(null);
       setDisponibilidadError('');
       try {
         const params = new URLSearchParams({ fecha: formData.fecha_evento });
@@ -385,7 +390,12 @@ const BookingForm = () => {
                     min={fechaLocal(new Date())}
                     className="form-field form-field-date"
                     value={formData.fecha_evento}
-                    onChange={e => setFormData({...formData, fecha_evento: e.target.value, hora_evento: ''})}
+                    onChange={e => {
+                      setHorariosOcupados([]);
+                      setHoraDisponible(null);
+                      setDisponibilidadError('');
+                      setFormData({...formData, fecha_evento: e.target.value, hora_evento: ''});
+                    }}
                   />
                   <label htmlFor="fecha-evento" className="form-field-label form-field-label-static">Fecha del evento</label>
                 </div>
@@ -414,7 +424,7 @@ const BookingForm = () => {
                   required
                   className="form-field form-field-date form-field-select"
                   value={formData.hora_evento}
-                  disabled={!formData.fecha_evento || consultandoDisponibilidad}
+                  disabled={!formData.fecha_evento}
                   aria-describedby="estado-disponibilidad"
                   onChange={(e) => setFormData({...formData, hora_evento: e.target.value})}
                 >
@@ -476,19 +486,43 @@ const BookingForm = () => {
 
           <div className="space-y-6">
             <div>
-              <div className="form-field-group">
-                <input
+              <div className="form-field-group form-field-group-compact">
+                <select
                   id="municipio-evento"
-                  type="text"
                   required
-                  maxLength={100}
                   autoComplete="address-level2"
-                  className="form-field"
-                  placeholder=" "
+                  className="form-field form-field-date form-field-select"
                   value={formData.municipio}
                   onChange={e => setFormData({...formData, municipio: e.target.value})}
-                />
-                <label htmlFor="municipio-evento" className="form-field-label">Municipio</label>
+                >
+                  <option value="">Selecciona un municipio</option>
+                  {municipiosPorDepartamento.map(({ department, municipalities }) => (
+                    <optgroup key={department} label={department}>
+                      {municipalities.map((municipality) => {
+                        const value = municipality === department
+                          ? municipality
+                          : `${municipality}, ${department}`;
+                        return (
+                          <option key={value} value={value}>
+                            {municipality}
+                          </option>
+                        );
+                      })}
+                    </optgroup>
+                  ))}
+                </select>
+                <label htmlFor="municipio-evento" className="form-field-label form-field-label-static">Municipio</label>
+                <p className="mt-1 text-xs text-white/40">
+                  Listado DIVIPOLA de los 1.103 municipios de Colombia, agrupados por departamento.{' '}
+                  <a
+                    href={FUENTE_MUNICIPIOS_URL}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-primary hover:underline"
+                  >
+                    Ver fuente
+                  </a>
+                </p>
               </div>
             </div>
             <div>

@@ -55,6 +55,18 @@ interface Notificacion {
 }
 
 type PaymentMode = 'mock' | 'wompi_sandbox' | 'disabled';
+type DemoPaymentResult = {
+  tipo: 'ANTICIPO' | 'TOTAL';
+  estado: 'APPROVED' | 'DECLINED';
+  monto: number;
+};
+
+const datosTarjetaDemoIniciales = {
+  titular: 'CLIENTE DE PRUEBA',
+  numero: '0000 0000 0000 0000',
+  vencimiento: '12/99',
+  cvv: '000',
+};
 
 const MisReservas = () => {
   const [reservas, setReservas] = useState<Reserva[]>([]);
@@ -74,10 +86,14 @@ const MisReservas = () => {
   const [pagos, setPagos] = useState<any[]>([]);
   const [paymentLoading, setPaymentLoading] = useState<string | null>(null);
   const [paymentMode, setPaymentMode] = useState<PaymentMode | null>(null);
+  const [checkoutTipo, setCheckoutTipo] = useState<'ANTICIPO' | 'TOTAL' | null>(null);
+  const [datosTarjetaDemo, setDatosTarjetaDemo] = useState(datosTarjetaDemoIniciales);
+  const [resultadoDemo, setResultadoDemo] = useState<DemoPaymentResult | null>(null);
+  const [resultadoSugerido, setResultadoSugerido] = useState<'APPROVED' | 'DECLINED'>('APPROVED');
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (!selected && !cancelTarget) return;
+    if (!selected && !cancelTarget && !checkoutTipo) return;
 
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
@@ -85,7 +101,7 @@ const MisReservas = () => {
     return () => {
       document.body.style.overflow = previousOverflow;
     };
-  }, [selected, cancelTarget]);
+  }, [selected, cancelTarget, checkoutTipo]);
 
   const showToast = (msg: string, type: 'success' | 'error' = 'success') => {
     setToast({ msg, type });
@@ -133,6 +149,13 @@ const MisReservas = () => {
       if (!background) setLoading(false);
       else setSyncing(false);
     }
+  };
+
+  const cerrarCheckout = () => {
+    setCheckoutTipo(null);
+    setDatosTarjetaDemo(datosTarjetaDemoIniciales);
+    setResultadoDemo(null);
+    setResultadoSugerido('APPROVED');
   };
 
   const fetchNotificaciones = async () => {
@@ -188,6 +211,14 @@ const MisReservas = () => {
 
   const iniciarPago = async (tipo: 'ANTICIPO' | 'TOTAL') => {
     if (!selected) return;
+    if (paymentMode === 'mock' || paymentMode === 'disabled') {
+      setDatosTarjetaDemo(datosTarjetaDemoIniciales);
+      setResultadoSugerido('APPROVED');
+      setResultadoDemo(null);
+      setCheckoutTipo(tipo);
+      return;
+    }
+
     setPaymentLoading(tipo);
     try {
       const response = await api.post('/pagos/crear/', { reserva_id: selected.id, tipo });
@@ -223,6 +254,77 @@ const MisReservas = () => {
       );
     } catch (error: any) {
       showToast(error?.response?.data?.detail || 'No se pudo simular el resultado del pago.', 'error');
+    } finally {
+      setPaymentLoading(null);
+    }
+  };
+
+  const handleDemoCardNumberChange = (value: string) => {
+    const digits = value.replace(/\D/g, '').slice(0, 16);
+    const formatted = digits.replace(/(\d{4})(?=\d)/g, '$1 ');
+    setDatosTarjetaDemo((current) => ({ ...current, numero: formatted }));
+  };
+
+  const handleDemoExpiryChange = (value: string) => {
+    const digits = value.replace(/\D/g, '').slice(0, 4);
+    const formatted = digits.length > 2 ? `${digits.slice(0, 2)}/${digits.slice(2)}` : digits;
+    setDatosTarjetaDemo((current) => ({ ...current, vencimiento: formatted }));
+  };
+
+  const procesarPagoDemo = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!checkoutTipo || !selected || paymentLoading) return;
+
+    const digits = datosTarjetaDemo.numero.replace(/\D/g, '');
+    const [monthText, yearText] = datosTarjetaDemo.vencimiento.split('/');
+    const month = Number(monthText);
+    const year = Number(`20${yearText}`);
+    const now = new Date();
+    const expiryValid = month >= 1 && month <= 12
+      && yearText?.length === 2
+      && (year > now.getFullYear() || (year === now.getFullYear() && month >= now.getMonth() + 1));
+
+    if (!datosTarjetaDemo.titular.trim() || digits.length !== 16 || !digits.startsWith('0000')
+      || !expiryValid || !/^\d{3,4}$/.test(datosTarjetaDemo.cvv)) {
+      showToast('Usa solo datos ficticios: número de 16 dígitos que empiece por 0000, vencimiento futuro y CVV de prueba.', 'error');
+      return;
+    }
+
+    const estado = resultadoSugerido;
+    setPaymentLoading('DEMO');
+    try {
+      if (paymentMode === 'mock') {
+        const paymentResponse = await api.post('/pagos/crear/', {
+          reserva_id: selected.id,
+          tipo: checkoutTipo,
+        });
+        const pagoCreado = paymentResponse.data;
+        if (pagoCreado.modo !== 'SIMULADO') {
+          throw new Error('El servidor no confirmó el modo de pago simulado.');
+        }
+
+        setPagos((current) => [pagoCreado, ...current]);
+        try {
+          const resultResponse = await api.post(`/pagos/${pagoCreado.id}/simular/`, { estado });
+          setPagos((current) => current.map((pago) =>
+            pago.id === pagoCreado.id ? resultResponse.data : pago
+          ));
+        } catch (simulationError: any) {
+          showToast(
+            simulationError?.response?.data?.detail
+              || 'La prueba quedó pendiente; puedes elegir el resultado desde el detalle de la reserva.',
+            'error',
+          );
+          setDatosTarjetaDemo(datosTarjetaDemoIniciales);
+          setCheckoutTipo(null);
+          return;
+        }
+      }
+
+      setResultadoDemo({ tipo: checkoutTipo, estado, monto: montoCheckout });
+      setDatosTarjetaDemo(datosTarjetaDemoIniciales);
+    } catch (error: any) {
+      showToast(error?.response?.data?.detail || error?.message || 'No se pudo completar la simulación.', 'error');
     } finally {
       setPaymentLoading(null);
     }
@@ -276,6 +378,13 @@ const MisReservas = () => {
   const unreadNotifications = notificaciones.filter((notification) => !notification.leido).length;
   const pendingSimulatedPayment = pagos.find((pago) => pago.modo === 'SIMULADO' && pago.estado === 'PENDIENTE');
   const hasPendingPayment = pagos.some((pago) => pago.estado === 'PENDIENTE');
+  const totalPagado = pagos
+    .filter((pago) => pago.estado === 'APPROVED')
+    .reduce((sum, pago) => sum + Number(pago.monto), 0);
+  const saldoPendiente = selected ? Math.max(0, totalMonto(selected) - totalPagado) : 0;
+  const montoCheckout = checkoutTipo === 'TOTAL'
+    ? saldoPendiente
+    : Math.min(Math.round((selected ? totalMonto(selected) : 0) / 2), saldoPendiente);
 
   return (
     <div className="min-h-screen bg-background text-white flex flex-col">
@@ -544,7 +653,7 @@ const MisReservas = () => {
                         )}
                         {paymentMode === 'disabled' && (
                           <p className="mb-3 rounded-lg border border-amber-400/20 bg-amber-400/5 px-3 py-2 text-xs text-amber-200">
-                            Pasarela deshabilitada en este entorno para evitar cobros.
+                            Los pagos reales están deshabilitados. Puedes abrir el simulador visual: no envía ni guarda datos y no cambia el historial.
                           </p>
                         )}
                         {pendingSimulatedPayment && (
@@ -578,14 +687,25 @@ const MisReservas = () => {
                           </p>
                         )}
                         {[5, 6, 8].includes(selected.status_id) ? (
-                          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                            <button type="button" onClick={() => iniciarPago('ANTICIPO')} disabled={!!paymentLoading || hasPendingPayment || !paymentMode || paymentMode === 'disabled'} className="rounded-lg border border-primary/30 bg-primary/10 px-3 py-2 text-xs font-semibold text-primary disabled:opacity-50">
-                            {paymentLoading === 'ANTICIPO' ? 'Preparando...' : paymentMode === 'mock' ? 'Probar anticipo (50%)' : 'Pagar anticipo (50%)'}
-                            </button>
-                            <button type="button" onClick={() => iniciarPago('TOTAL')} disabled={!!paymentLoading || hasPendingPayment || !paymentMode || paymentMode === 'disabled'} className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-300 disabled:opacity-50">
-                            {paymentLoading === 'TOTAL' ? 'Preparando...' : paymentMode === 'mock' ? 'Probar pago total' : 'Pagar totalidad'}
-                            </button>
-                          </div>
+                          paymentMode === 'disabled' ? (
+                            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                              <button type="button" onClick={() => iniciarPago('ANTICIPO')} disabled={!!paymentLoading || !paymentMode} className="rounded-lg border border-primary/30 bg-primary/10 px-3 py-2 text-xs font-semibold text-primary transition-colors hover:bg-primary/15 disabled:opacity-50">
+                                <span className="inline-flex items-center gap-2"><CreditCard className="h-4 w-4" /> Probar anticipo (50%)</span>
+                              </button>
+                              <button type="button" onClick={() => iniciarPago('TOTAL')} disabled={!!paymentLoading || !paymentMode} className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-300 transition-colors hover:bg-emerald-500/15 disabled:opacity-50">
+                                <span className="inline-flex items-center gap-2"><CreditCard className="h-4 w-4" /> Probar pago total</span>
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                              <button type="button" onClick={() => iniciarPago('ANTICIPO')} disabled={!!paymentLoading || hasPendingPayment || !paymentMode} className="rounded-lg border border-primary/30 bg-primary/10 px-3 py-2 text-xs font-semibold text-primary disabled:opacity-50">
+                                {paymentLoading === 'ANTICIPO' ? 'Preparando...' : paymentMode === 'mock' ? 'Simular anticipo (50%)' : 'Pagar anticipo (50%)'}
+                              </button>
+                              <button type="button" onClick={() => iniciarPago('TOTAL')} disabled={!!paymentLoading || hasPendingPayment || !paymentMode} className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-300 disabled:opacity-50">
+                                {paymentLoading === 'TOTAL' ? 'Preparando...' : paymentMode === 'mock' ? 'Simular pago total' : 'Pagar totalidad'}
+                              </button>
+                            </div>
+                          )
                         ) : (
                           <p className="rounded-lg border border-amber-400/15 bg-amber-400/5 px-3 py-2 text-xs text-amber-200/80">
                             Los pagos estarán disponibles cuando el administrador confirme tu reserva.
@@ -658,6 +778,178 @@ const MisReservas = () => {
         </div>,
         document.body
         )
+      )}
+
+      {checkoutTipo && selected && createPortal(
+        <div className="fixed inset-0 z-[250] grid min-h-dvh place-items-center overflow-y-auto bg-background/85 p-3 backdrop-blur-sm sm:p-6">
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="demo-checkout-title"
+            className="my-auto w-full max-w-lg overflow-hidden rounded-2xl border border-white/10 bg-surface shadow-2xl"
+          >
+            <div className="flex items-start justify-between gap-4 border-b border-white/10 p-5 sm:p-6">
+              <div>
+                <p className="mb-1 text-[10px] font-bold uppercase tracking-[0.2em] text-primary">Checkout de demostración</p>
+                <h2 id="demo-checkout-title" className="text-xl font-bold text-white">
+                  {resultadoDemo ? 'Resultado de la prueba' : 'Simulador de pago'}
+                </h2>
+                <p className="mt-1 text-xs text-white/50">{selected.nombre_evento} · {checkoutTipo === 'ANTICIPO' ? 'Anticipo del 50%' : 'Pago total'}</p>
+              </div>
+              <button
+                type="button"
+                onClick={cerrarCheckout}
+                disabled={!!paymentLoading}
+                aria-label="Cerrar simulador"
+                className="rounded-lg p-2 text-white/50 transition-colors hover:bg-white/5 hover:text-white disabled:opacity-40"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {resultadoDemo ? (
+              <div className="p-6 text-center sm:p-8">
+                {resultadoDemo.estado === 'APPROVED' ? (
+                  <CheckCircle2 className="mx-auto mb-4 h-14 w-14 text-emerald-400" />
+                ) : (
+                  <XCircle className="mx-auto mb-4 h-14 w-14 text-red-400" />
+                )}
+                <h3 className={`text-lg font-bold ${resultadoDemo.estado === 'APPROVED' ? 'text-emerald-300' : 'text-red-300'}`}>
+                  {resultadoDemo.estado === 'APPROVED' ? 'Pago aprobado en la simulación' : 'Pago rechazado en la simulación'}
+                </h3>
+                <p className="mt-2 text-sm text-white/60">
+                  {formatCOP(resultadoDemo.monto)} COP
+                </p>
+                <p className="mt-4 rounded-lg border border-sky-400/20 bg-sky-400/5 p-3 text-xs leading-relaxed text-sky-100">
+                  {paymentMode === 'disabled'
+                    ? 'Esta prueba solo cambió la pantalla de tu navegador. No se envió información ni se modificó el historial de pagos.'
+                    : 'Se usó el modo de prueba local. No se realizó ningún cobro; los datos de tarjeta no se enviaron ni se guardaron.'}
+                </p>
+                <button
+                  type="button"
+                  onClick={cerrarCheckout}
+                  className="mt-6 w-full rounded-xl bg-primary px-4 py-3 text-sm font-bold text-background transition-opacity hover:opacity-90"
+                >
+                  Listo
+                </button>
+              </div>
+            ) : (
+              <form onSubmit={procesarPagoDemo} className="space-y-5 p-5 sm:p-6">
+                <div className="flex items-center justify-between rounded-xl border border-primary/20 bg-primary/5 p-4">
+                  <div>
+                    <p className="text-xs text-white/50">Valor de la prueba</p>
+                    <p className="mt-1 text-xl font-bold text-white">{formatCOP(montoCheckout)} <span className="text-xs font-medium text-white/40">COP</span></p>
+                  </div>
+                  <CreditCard className="h-7 w-7 text-primary" />
+                </div>
+
+                <div className="rounded-xl border border-amber-400/30 bg-amber-400/10 p-3 text-xs leading-relaxed text-amber-100">
+                  <strong>Solo demostración.</strong> No ingreses información real. Usa únicamente los datos ficticios que aparecen abajo; no se hará ningún cobro.
+                </div>
+
+                <div className="space-y-3">
+                  <label className="block text-xs font-semibold text-white/70">
+                    Nombre del titular
+                    <input
+                      type="text"
+                      autoComplete="new-password"
+                      value={datosTarjetaDemo.titular}
+                      onChange={(event) => setDatosTarjetaDemo((current) => ({ ...current, titular: event.target.value.toUpperCase() }))}
+                      maxLength={60}
+                      className="mt-1.5 w-full rounded-lg border border-white/10 bg-black/20 px-3 py-2.5 text-sm text-white outline-none transition-colors focus:border-primary/50"
+                      required
+                    />
+                  </label>
+                  <label className="block text-xs font-semibold text-white/70">
+                    Número de tarjeta ficticio
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      autoComplete="new-password"
+                      value={datosTarjetaDemo.numero}
+                      onChange={(event) => handleDemoCardNumberChange(event.target.value)}
+                      maxLength={19}
+                      aria-describedby="demo-card-hint"
+                      className="mt-1.5 w-full rounded-lg border border-white/10 bg-black/20 px-3 py-2.5 font-mono text-sm tracking-wider text-white outline-none transition-colors focus:border-primary/50"
+                      required
+                    />
+                    <span id="demo-card-hint" className="mt-1 block text-[10px] text-white/40">Debe tener 16 dígitos y comenzar por 0000.</span>
+                  </label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <label className="block text-xs font-semibold text-white/70">
+                      Vencimiento
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        autoComplete="new-password"
+                        placeholder="MM/AA"
+                        value={datosTarjetaDemo.vencimiento}
+                        onChange={(event) => handleDemoExpiryChange(event.target.value)}
+                        maxLength={5}
+                        className="mt-1.5 w-full rounded-lg border border-white/10 bg-black/20 px-3 py-2.5 font-mono text-sm text-white outline-none transition-colors focus:border-primary/50"
+                        required
+                      />
+                    </label>
+                    <label className="block text-xs font-semibold text-white/70">
+                      CVV ficticio
+                      <input
+                        type="password"
+                        inputMode="numeric"
+                        autoComplete="new-password"
+                        value={datosTarjetaDemo.cvv}
+                        onChange={(event) => setDatosTarjetaDemo((current) => ({ ...current, cvv: event.target.value.replace(/\D/g, '').slice(0, 4) }))}
+                        maxLength={4}
+                        className="mt-1.5 w-full rounded-lg border border-white/10 bg-black/20 px-3 py-2.5 font-mono text-sm text-white outline-none transition-colors focus:border-primary/50"
+                        required
+                      />
+                    </label>
+                  </div>
+                </div>
+
+                <fieldset>
+                  <legend className="mb-2 text-xs font-semibold text-white/70">Resultado que quieres probar</legend>
+                  <div className="grid grid-cols-2 gap-2">
+                    {([
+                      ['APPROVED', 'Aprobado', 'emerald'],
+                      ['DECLINED', 'Rechazado', 'red'],
+                    ] as const).map(([estado, label, color]) => (
+                      <button
+                        key={estado}
+                        type="button"
+                        aria-pressed={resultadoSugerido === estado}
+                        onClick={() => setResultadoSugerido(estado)}
+                        className={`rounded-lg border px-3 py-2.5 text-xs font-bold transition-colors ${
+                          resultadoSugerido === estado
+                            ? color === 'emerald'
+                              ? 'border-emerald-400/50 bg-emerald-400/15 text-emerald-200'
+                              : 'border-red-400/50 bg-red-400/15 text-red-200'
+                            : 'border-white/10 bg-white/[0.02] text-white/50 hover:bg-white/5'
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </fieldset>
+
+                <button
+                  type="submit"
+                  disabled={!!paymentLoading}
+                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary px-4 py-3 text-sm font-bold text-background transition-opacity hover:opacity-90 disabled:opacity-50"
+                >
+                  {paymentLoading === 'DEMO' && <Loader2 className="h-4 w-4 animate-spin" />}
+                  {paymentLoading === 'DEMO' ? 'Procesando prueba...' : 'Simular pago'}
+                </button>
+                <p className="text-center text-[10px] text-white/35">
+                  {paymentMode === 'disabled'
+                    ? 'Simulación local en este navegador; no se contacta al servidor de pagos.'
+                    : 'Modo de prueba local; no se conecta a Wompi.'}
+                </p>
+              </form>
+            )}
+          </section>
+        </div>,
+        document.body
       )}
 
       {/* ── MODAL DE CANCELACIÓN ── */}

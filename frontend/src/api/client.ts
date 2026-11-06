@@ -77,26 +77,32 @@ api.interceptors.response.use(
       }
 
       isRefreshing = true;
+      const sessionRefreshToken = refreshToken;
       try {
         const resp = await axios.post(`${BACKEND_HOST}/api/token/refresh/`, { refresh: refreshToken });
+        if (localStorage.getItem('refresh_token') !== sessionRefreshToken) {
+          throw new Error('La sesión cambió mientras se renovaba el token.');
+        }
+
         const newAccess = resp.data.access || resp.data.token || resp.data.access_token;
-        const newRefresh = resp.data.refresh || null;
-        if (newAccess) {
+        const newRefresh = resp.data.refresh;
+        if (typeof newAccess === 'string' && typeof newRefresh === 'string') {
           setTokens(newAccess, newRefresh);
           originalRequest.headers['Authorization'] = 'Bearer ' + newAccess;
           processQueue(null, newAccess);
           return axios(originalRequest);
         }
-        // If no access in response treat as failure
-        clearTokens();
-        processQueue(new Error('No access token in refresh response'), null);
-        return Promise.reject(error);
+        throw new Error('La respuesta de renovación no contiene los tokens esperados.');
       } catch (refreshError) {
-        clearTokens();
+        const sameSession = localStorage.getItem('refresh_token') === sessionRefreshToken;
+        if (sameSession) {
+          clearTokens();
+          localStorage.removeItem('user');
+          window.dispatchEvent(new Event('auth-session-updated'));
+        }
         processQueue(refreshError, null);
-        // Redirect to login page so user can authenticate again
-        if (typeof window !== 'undefined') {
-          try { window.location.href = '/login'; } catch(e) { /* ignore */ }
+        if (sameSession && typeof window !== 'undefined') {
+          window.location.href = '/login';
         }
         return Promise.reject(refreshError);
       } finally {

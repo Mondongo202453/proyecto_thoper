@@ -7,9 +7,10 @@ from reportlab.lib import colors
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import inch
+from reportlab.lib.utils import ImageReader
 from reportlab.platypus import (
     Image,
-    KeepInFrame,
+    KeepTogether,
     Paragraph,
     SimpleDocTemplate,
     Spacer,
@@ -29,8 +30,7 @@ def _text(value):
 
 
 def _logo_path():
-    project_root = os.path.dirname(settings.BASE_DIR)
-    return os.path.join(project_root, "frontend", "public", "img", "logo-topher.jpg")
+    return os.path.join(settings.BASE_DIR, "documentos", "assets", "logo-topher.jpg")
 
 
 def _money(value):
@@ -52,8 +52,8 @@ def generar_pdf_reserva(reserva, tipo_doc="cotizacion"):
         pagesize=letter,
         rightMargin=PAGE_MARGIN,
         leftMargin=PAGE_MARGIN,
-        topMargin=PAGE_MARGIN,
-        bottomMargin=PAGE_MARGIN,
+        topMargin=0.78 * inch,
+        bottomMargin=0.62 * inch,
         title=f"{tipo_doc.title()} - {reserva.numero_solicitud}",
         author="Topher Producciones",
     )
@@ -62,15 +62,15 @@ def generar_pdf_reserva(reserva, tipo_doc="cotizacion"):
         "CompactBody",
         parent=styles["Normal"],
         fontName="Helvetica",
-        fontSize=8.3,
-        leading=10,
+        fontSize=9,
+        leading=12,
         spaceAfter=0,
     )
     small = ParagraphStyle(
         "SmallBody",
         parent=body,
-        fontSize=7.3,
-        leading=8.5,
+        fontSize=8,
+        leading=10,
     )
     section = ParagraphStyle(
         "Section",
@@ -78,73 +78,114 @@ def generar_pdf_reserva(reserva, tipo_doc="cotizacion"):
         fontName="Helvetica-Bold",
         fontSize=8.2,
         textColor=BRAND_DARK,
-        spaceAfter=3,
+        spaceAfter=5,
     )
     title = ParagraphStyle(
         "DocumentTitle",
         parent=body,
         fontName="Helvetica-Bold",
-        fontSize=13,
-        leading=15,
-        alignment=1,
-        textColor=BRAND_DARK,
-        spaceAfter=7,
+        fontSize=16,
+        leading=19,
+        textColor=colors.white,
+    )
+    header_detail = ParagraphStyle(
+        "HeaderDetail",
+        parent=small,
+        textColor=colors.white,
+        alignment=2,
+    )
+    table_header = ParagraphStyle(
+        "TableHeader",
+        parent=small,
+        fontName="Helvetica-Bold",
+        textColor=colors.white,
     )
 
     story = []
     logo_path = _logo_path()
     if os.path.isfile(logo_path):
-        logo = Image(logo_path, width=2.2 * inch, height=0.53 * inch)
+        logo_reader = ImageReader(logo_path)
+        logo_width, logo_height = logo_reader.getSize()
+        display_width = 2.45 * inch
+        logo = Image(
+            logo_path,
+            width=display_width,
+            height=display_width * logo_height / logo_width,
+        )
         logo.hAlign = "LEFT"
     else:
-        logo = Paragraph("<b>TOPHER PRODUCCIONES</b>", title)
+        logo = Paragraph("<b>TOPHER PRODUCCIONES</b>", header_detail)
 
     company = Paragraph(
-        "<b>Topher Producciones</b><br/>"
+        "<b>TOPHER PRODUCCIONES</b><br/>"
         "Puerto Boyacá, Boyacá<br/>"
-        "Tel: +57 320 733 0859 | thoperPro@gmail.com",
-        small,
+        "+57 320 733 0859<br/>"
+        "thoperPro@gmail.com",
+        header_detail,
     )
-    header = Table([[logo, company]], colWidths=[2.8 * inch, 4.0 * inch])
+    header = Table([[logo, company]], colWidths=[3.2 * inch, doc.width - 3.2 * inch])
     header.setStyle(
         TableStyle(
             [
-                ("BACKGROUND", (0, 0), (0, 0), colors.black),
+                ("BACKGROUND", (0, 0), (-1, -1), colors.black),
                 ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-                ("LEFTPADDING", (0, 0), (-1, -1), 5),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 7),
-                ("TOPPADDING", (0, 0), (-1, -1), 5),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
-                ("LINEBELOW", (0, 0), (-1, -1), 2, BRAND_ORANGE),
+                ("LEFTPADDING", (0, 0), (-1, -1), 12),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 12),
+                ("TOPPADDING", (0, 0), (-1, -1), 9),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 9),
+                ("LINEBELOW", (0, 0), (-1, -1), 3, BRAND_ORANGE),
             ]
         )
     )
-    story.extend([header, Spacer(1, 9)])
+    story.extend([header, Spacer(1, 14)])
 
     titles = {
         "cotizacion": "COTIZACIÓN / PRESUPUESTO",
         "confirmacion": "CONFIRMACIÓN DE RESERVA",
         "servicio_prestado": "COMPROBANTE DE SERVICIO",
     }
-    story.append(Paragraph(titles.get(tipo_doc, "DOCUMENTO"), title))
+    document_meta = Table(
+        [[
+            Paragraph(titles.get(tipo_doc, "DOCUMENTO"), title),
+            Paragraph(
+                f"<font color='#E8751A'><b>SOLICITUD</b></font><br/>"
+                f"<b>{_text(reserva.numero_solicitud)}</b>",
+                header_detail,
+            ),
+        ]],
+        colWidths=[doc.width * 0.68, doc.width * 0.32],
+    )
+    document_meta.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, -1), BRAND_DARK),
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("ALIGN", (1, 0), (1, 0), "RIGHT"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 12),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 12),
+                ("TOPPADDING", (0, 0), (-1, -1), 10),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 10),
+            ]
+        )
+    )
+    story.extend([document_meta, Spacer(1, 10)])
 
     client = Paragraph(
-        f"<b>CLIENTE</b><br/>"
-        f"Nombre: {_text(reserva.usuario.nombre_completo)}<br/>"
+        f"<font color='#E8751A'><b>CLIENTE</b></font><br/><br/>"
+        f"<b>{_text(reserva.usuario.nombre_completo)}</b><br/>"
         f"Email: {_text(reserva.usuario.correo)}<br/>"
         f"Teléfono: {_text(reserva.usuario.telefono or 'N/A')}",
         body,
     )
     event = Paragraph(
-        f"<b>DETALLES DEL EVENTO</b><br/>"
-        f"Solicitud: {_text(reserva.numero_solicitud)}<br/>"
-        f"Evento: {_text(reserva.nombre_evento)}<br/>"
+        f"<font color='#E8751A'><b>DETALLES DEL EVENTO</b></font><br/><br/>"
+        f"<b>{_text(reserva.nombre_evento)}</b><br/>"
         f"Fecha: {_text(reserva.fecha_evento)} | Hora: {_text(reserva.hora_evento)}<br/>"
         f"Lugar: {_text(reserva.lugar)}, {_text(reserva.municipio)}<br/>"
         f"Asistentes: {_text(reserva.asistentes)}",
         body,
     )
-    details = Table([[client, event]], colWidths=[3.35 * inch, 3.45 * inch])
+    details = Table([[client, event]], colWidths=[doc.width / 2, doc.width / 2])
     details.setStyle(
         TableStyle(
             [
@@ -152,22 +193,26 @@ def generar_pdf_reserva(reserva, tipo_doc="cotizacion"):
                 ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor("#D6DCE1")),
                 ("INNERGRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#D6DCE1")),
                 ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#F7F8FA")),
-                ("LEFTPADDING", (0, 0), (-1, -1), 8),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 8),
-                ("TOPPADDING", (0, 0), (-1, -1), 6),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+                ("LEFTPADDING", (0, 0), (-1, -1), 11),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 11),
+                ("TOPPADDING", (0, 0), (-1, -1), 10),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 10),
             ]
         )
     )
-    story.extend([details, Spacer(1, 9)])
+    story.extend([
+        details,
+        Spacer(1, 12),
+        Paragraph("RESUMEN DE SERVICIOS", section),
+    ])
 
     service_rows = [
         [
-            Paragraph("<b>Descripción del servicio</b>", small),
-            Paragraph("<b>Cant.</b>", small),
-            Paragraph("<b>Unidad</b>", small),
-            Paragraph("<b>Horas</b>", small),
-            Paragraph("<b>Subtotal</b>", small),
+            Paragraph("Descripción del servicio", table_header),
+            Paragraph("Cant.", table_header),
+            Paragraph("Unidad", table_header),
+            Paragraph("Horas", table_header),
+            Paragraph("Subtotal", table_header),
         ]
     ]
     total = 0
@@ -189,7 +234,13 @@ def generar_pdf_reserva(reserva, tipo_doc="cotizacion"):
 
     services = Table(
         service_rows,
-        colWidths=[2.75 * inch, 0.52 * inch, 0.72 * inch, 0.62 * inch, 1.72 * inch],
+        colWidths=[
+            doc.width * 0.40,
+            doc.width * 0.07,
+            doc.width * 0.10,
+            doc.width * 0.08,
+            doc.width * 0.35,
+        ],
         repeatRows=1,
     )
     services.setStyle(
@@ -212,7 +263,7 @@ def generar_pdf_reserva(reserva, tipo_doc="cotizacion"):
 
     total_table = Table(
         [[Paragraph("<b>TOTAL A PAGAR</b>", body), Paragraph(f"<b>{_money(total)}</b>", body)]],
-        colWidths=[5.15 * inch, 1.18 * inch],
+        colWidths=[doc.width * 0.68, doc.width * 0.32],
         hAlign="RIGHT",
     )
     total_table.setStyle(
@@ -234,9 +285,9 @@ def generar_pdf_reserva(reserva, tipo_doc="cotizacion"):
         assignments = reserva.asignaciones_staff.select_related("personal").all()
         if assignments:
             staff_rows = [[
-                Paragraph("<b>Personal asignado</b>", small),
-                Paragraph("<b>Rol</b>", small),
-                Paragraph("<b>Especialidad</b>", small),
+                Paragraph("Personal asignado", table_header),
+                Paragraph("Rol", table_header),
+                Paragraph("Especialidad", table_header),
             ]]
             for assignment in assignments:
                 staff_rows.append(
@@ -246,7 +297,11 @@ def generar_pdf_reserva(reserva, tipo_doc="cotizacion"):
                         Paragraph(_text(assignment.personal.especialidad), small),
                     ]
                 )
-            staff = Table(staff_rows, colWidths=[2.3 * inch, 2.1 * inch, 2.3 * inch])
+            staff = Table(
+                staff_rows,
+                colWidths=[doc.width * 0.34, doc.width * 0.31, doc.width * 0.35],
+                repeatRows=1,
+            )
             staff.setStyle(
                 TableStyle(
                     [
@@ -294,7 +349,7 @@ def generar_pdf_reserva(reserva, tipo_doc="cotizacion"):
             ["____________________________", "____________________________"],
             ["Firma autorizada Topher", "Aceptado por el cliente"],
         ],
-        colWidths=[3.4 * inch, 3.4 * inch],
+        colWidths=[doc.width / 2, doc.width / 2],
     )
     signatures.setStyle(
         TableStyle(
@@ -307,14 +362,34 @@ def generar_pdf_reserva(reserva, tipo_doc="cotizacion"):
             ]
         )
     )
-    story.extend([Spacer(1, 8), terms, Spacer(1, 11), signatures])
+    story.append(KeepTogether([Spacer(1, 12), terms, Spacer(1, 14), signatures]))
 
-    # Shrink only when unusually long service/observation data would overflow.
-    compact_story = KeepInFrame(
-        maxWidth=doc.width,
-        maxHeight=doc.height,
-        content=story,
-        mode="shrink",
-    )
-    doc.build([compact_story])
+    def draw_page_chrome(canvas, document):
+        canvas.saveState()
+        page_width, page_height = letter
+        canvas.setStrokeColor(BRAND_ORANGE)
+        canvas.setLineWidth(0.7)
+        canvas.line(PAGE_MARGIN, 0.48 * inch, page_width - PAGE_MARGIN, 0.48 * inch)
+        canvas.setFont("Helvetica", 7.5)
+        canvas.setFillColor(BRAND_DARK)
+        canvas.drawString(PAGE_MARGIN, 0.29 * inch, "Topher Producciones - Efectos especiales para eventos")
+        canvas.drawRightString(page_width - PAGE_MARGIN, 0.29 * inch, f"Página {document.page}")
+
+        if document.page > 1:
+            canvas.setFont("Helvetica-Bold", 8)
+            canvas.drawString(
+                PAGE_MARGIN,
+                page_height - 0.39 * inch,
+                f"TOPHER PRODUCCIONES  |  {reserva.numero_solicitud}",
+            )
+            canvas.setStrokeColor(BRAND_ORANGE)
+            canvas.line(
+                PAGE_MARGIN,
+                page_height - 0.52 * inch,
+                page_width - PAGE_MARGIN,
+                page_height - 0.52 * inch,
+            )
+        canvas.restoreState()
+
+    doc.build(story, onFirstPage=draw_page_chrome, onLaterPages=draw_page_chrome)
     return f"/media/pdfs/{filename}"

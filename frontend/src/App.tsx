@@ -18,7 +18,16 @@ const Perfil = React.lazy(() => import('./pages/Perfil'));
 
 // --- COMPONENTS ---
 
-const Footer = () => (
+const Footer = () => {
+  const location = useLocation();
+
+  const handleFooterLinkClick = (path: string) => {
+    if (location.pathname === path) {
+      window.scrollTo({ top: 0, left: 0, behavior: 'smooth' });
+    }
+  };
+
+  return (
   <footer className="py-14 sm:py-20 px-4 sm:px-6 border-t border-white/5 bg-background">
     <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-4 gap-12 w-full">
       <div className="md:col-span-2">
@@ -38,11 +47,11 @@ const Footer = () => (
       <div>
         <h4 className="font-bold mb-6 uppercase tracking-widest text-xs text-white/30">Navegación</h4>
         <ul className="space-y-4 text-sm">
-          <li><Link to="/" className="hover:text-primary transition-colors">Inicio</Link></li>
-          <li><Link to="/servicios" className="hover:text-primary transition-colors">Servicios</Link></li>
-          <li><Link to="/portafolio" className="hover:text-primary transition-colors">Portafolio</Link></li>
-          <li><Link to="/contacto" className="hover:text-primary transition-colors">Contacto</Link></li>
-          <li><Link to="/privacidad" className="hover:text-primary transition-colors">Aviso de privacidad</Link></li>
+          <li><Link to="/" onClick={() => handleFooterLinkClick('/')} className="hover:text-primary transition-colors">Inicio</Link></li>
+          <li><Link to="/servicios" onClick={() => handleFooterLinkClick('/servicios')} className="hover:text-primary transition-colors">Servicios</Link></li>
+          <li><Link to="/portafolio" onClick={() => handleFooterLinkClick('/portafolio')} className="hover:text-primary transition-colors">Portafolio</Link></li>
+          <li><Link to="/contacto" onClick={() => handleFooterLinkClick('/contacto')} className="hover:text-primary transition-colors">Contacto</Link></li>
+          <li><Link to="/privacidad" onClick={() => handleFooterLinkClick('/privacidad')} className="hover:text-primary transition-colors">Aviso de privacidad</Link></li>
         </ul>
       </div>
       <div>
@@ -67,7 +76,8 @@ const Footer = () => (
       © {new Date().getFullYear()} Topher Producciones.
     </div>
   </footer>
-);
+  );
+};
 
 const Navbar = () => {
   const [isOpen, setIsOpen] = React.useState(false);
@@ -89,10 +99,14 @@ const Navbar = () => {
   React.useEffect(() => {
     const handleStorage = updateSession;
     window.addEventListener('storage', handleStorage);
+    window.addEventListener('auth-session-updated', handleStorage);
     // También verificar al cambiar de ruta y cerrar menú móvil
     updateSession();
     setIsOpen(false); // Cerrar menú al navegar (evita crash AnimatePresence)
-    return () => window.removeEventListener('storage', handleStorage);
+    return () => {
+      window.removeEventListener('storage', handleStorage);
+      window.removeEventListener('auth-session-updated', handleStorage);
+    };
   }, [location]);
 
   const logout = () => {
@@ -253,6 +267,16 @@ const App = () => {
   
   const hideLayout = isDashboard || isStaffPanel;
   const hideFooter = hideLayout || isMisReservas;
+
+  React.useEffect(() => {
+    if (location.hash) {
+      requestAnimationFrame(() => {
+        document.getElementById(decodeURIComponent(location.hash.slice(1)))?.scrollIntoView();
+      });
+      return;
+    }
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+  }, [location.pathname, location.hash]);
 
   return (
     <div className="min-h-screen bg-background text-white flex flex-col page-visible">
